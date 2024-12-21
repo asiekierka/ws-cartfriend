@@ -333,6 +333,7 @@ driver_write_slot:
 
 	mov ax, di
 	add ax, cx
+	dec ax
 	xor ax, di
 	and ax, 0xFE00
 	jnz _dws_write_slow
