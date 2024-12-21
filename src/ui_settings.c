@@ -356,6 +356,7 @@ Reselect:
     } else if (result == MENU_OPT_UNLOAD_SRAM) {
         if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
             sram_switch_to_slot(0xFF);
+            ui_reset_main_screen();
         }
     } else if (result == MENU_OPT_SAVE_MANAGEMENT) {
         i = 0;
@@ -413,6 +414,7 @@ SaveMgmtReselect:
             } else {
                 return;
             }
+            ui_reset_main_screen();
         } else {
             goto SaveMgmtReselect;
         }
