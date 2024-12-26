@@ -45,7 +45,8 @@ typedef enum {
 static uint16_t __far ui_lang_lks[] = {
     LK_LANG_EN,
     LK_LANG_PL,
-    LK_LANG_DE
+    LK_LANG_DE,
+    LK_LANG_FR
 };
 
 static uint16_t __far ui_opt_lks[] = {

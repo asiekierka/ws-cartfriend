@@ -20,10 +20,13 @@
 #include <stdint.h>
 #include "../res/lang.h"
 
-#define UI_LANGUAGE_EN 0
-#define UI_LANGUAGE_PL 1
-#define UI_LANGUAGE_DE 2
-#define UI_LANGUAGE_MAX 3
+typedef enum {
+	UI_LANGUAGE_EN = 0,
+	UI_LANGUAGE_PL,
+	UI_LANGUAGE_DE,
+	UI_LANGUAGE_FR,
+	UI_LANGUAGE_MAX
+} ui_language_t;
 
 #define UI_PAL_MAIN    0
 #define UI_PAL_MAINI   1
