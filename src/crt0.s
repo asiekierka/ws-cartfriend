@@ -24,12 +24,6 @@
 	.code16
 	.intel_syntax noprefix
 
-	.section .ivt
-	.global _ivt
-_ivt:
-	.fill 16, 4, 0
-	.fill 12, 2, 0
-
 	.section .start
 	.global _start
 _start:
@@ -61,11 +55,11 @@ _start:
 	mov	[0x52], es
 	mov	[0x54], ss
 
-	// init ES/SS/SP here so we can PUSHF
+	// configure SP, ES, SS, flags
+	mov	sp, offset "__wf_heap_top"
 	mov	ax, 0x0000
 	mov	es, ax
 	mov	ss, ax
-	mov	sp, offset "__eheap"
 
 	pushf
 	pop ax
@@ -73,37 +67,74 @@ _start:
 
 	// CartFriend end
 
-	// set DS to the location of rodata
-        .reloc  .+1, R_386_SEG16, "__erom!"
-        mov     ax, 0
+_start_continue:
+	// set DS:SI to the location of the data block
+	.reloc	.+1, R_386_SEG16, "__wf_data_block!"
+	mov	ax, 0
 	mov	ds, ax
+	mov	si, offset "__wf_data_block"
 
-	// copy rodata/data from ROM to RAM
-	xor	ax, ax
-	mov	es, ax
-	mov	ss, ax
-	mov	si, offset "__erom&"
-	mov	di, offset "__sdata"
-	mov	cx, offset "__lwdata"
 	cld
-	rep	movsw
 
-	// initialize segments
-	// (es/ss) initialized above
-	// xor	ax, ax - done above
-	mov	ds, ax
+_start_parse_data_block:
+	lodsw
+	mov	cx, ax
+	test	cx, cx
+	jz	_start_finish_data_block
+	lodsw
+	mov	di, ax
+	lodsw
+#ifndef SRAM
+	cmp	di, 0x4000
+	jb	_start_parse_data_block_non_wsc
+
+	// data block requests WSC mode?
+	in	al, 0xA0
+	test	al, 0x02
+	// if the console is not color, skip the block entirely
+	jz	_start_parse_data_block
+	// initialize WSC mode
+	in	al, 0x60
+	or	al, 0x80
+	out	0x60, al
+	
+_start_parse_data_block_non_wsc:
+#endif
+	test	ah, 0x80
+	jnz	_start_data_block_clear
+
+_start_data_block_move:
+	shr	cx, 1
+	rep	movsw
+	jnc	_start_parse_data_block
+	movsb
+	jmp	_start_parse_data_block
+
+_start_data_block_clear:
+	xor	ax, ax
+	shr	cx, 1
+	rep	stosw
+	jnc	_start_parse_data_block
+	stosb
+	jmp	_start_parse_data_block
+
+_start_finish_data_block:
+
+	// initialize DS
+	push	es
+	pop	ds
 
 	// clear int enable
 	out	0xB2, al
 
-	// clear bss
-	mov	di, offset "__edata"
-	mov	cx, offset "__lwbss"
-	rep	stosw
-
 	// configure default interrupt base
 	mov	al, 0x08
 	out	0xB0, al
+
+	// reset console mode to mono
+	in	al, 0x60
+	and	al, 0x1F
+	out	0x60, al
 
 #ifdef __IA16_CMODEL_IS_FAR_TEXT
 	.reloc	.+3, R_386_SEG16, "main!"
@@ -111,3 +142,14 @@ _start:
 #else
 	jmp main
 #endif
+
+	.global crt0_restart
+crt0_restart:
+	cli
+	// configure SP, ES, SS, flags
+	mov	sp, offset "__wf_heap_top"
+	xor	ax, ax
+	mov	ds, ax
+	mov	es, ax
+	mov	ss, ax
+	jmp _start_continue

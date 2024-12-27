@@ -26,6 +26,13 @@
 #include "util.h"
 #include "ws/hardware.h"
 
+// Reserve 0x2000 bytes of space for BIOS (if botting from PCv2 override)
+__attribute__((section(".rom0_ffff_e000.bios_pad")))
+volatile uint8_t bios_pad[0x1FF0] = {0x00};
+// Reserve 0x58 bytes of space in RAM
+__attribute__((section(".iram_0040.ivt_pad")))
+volatile uint8_t ivt_pad[0x18] = {0x00};
+
 // Memory map:
 // 0x0000 - 0x1800: Heap
 // 0x1800 - 0x2000: Screen 1
@@ -47,7 +54,9 @@ void __far vblank_int_handler(void) {
 }
 
 void main(void) {
-	outportb(IO_INT_NMI_CTRL, 0);
+	// FIXME: bios_pad[0] is used here solely to create a strong memory reference
+	// to dodge elf2rom's limited section garbage collector
+	outportb(IO_INT_NMI_CTRL, bios_pad[0] & ivt_pad[0] & 0x00);
 
 	cpu_irq_disable();
 	ws_hwint_set_handler(HWINT_IDX_VBLANK, vblank_int_handler);
@@ -90,7 +99,7 @@ void main(void) {
 	if (settings_first_boot && settings_local.active_sram_slot == SRAM_SLOT_FIRST_BOOT) {
 		ui_reset_main_screen();
 		if (ui_dialog_run(0, 0, LK_DIALOG_FIRST_BOOT_ERASE, LK_DIALOG_YES_NO) == 0) {
-			sram_erase(SRAM_SLOT_ALL);
+			sram_erase(SRAM_SLOT_ALL, SRAM_OFFSET_SIZE_DEFAULT);
 		}
 	}
 #endif

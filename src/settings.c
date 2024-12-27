@@ -64,6 +64,7 @@ void settings_reset(void) {
         settings_local.sram_slot_mapping[sram_slot++] = 0xFF;
     }
     settings_local.active_sram_slot = SRAM_SLOT_FIRST_BOOT;
+    settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
     settings_local.color_theme = 0x02;
 
     settings_slot = 127;
@@ -98,6 +99,10 @@ static void settings_migrate(void) {
 
     if (settings_local.version < 5) {
         settings_local.language = 0;
+    }
+
+    if (settings_local.version < 6) {
+        settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
     }
 
     settings_local.version = SETTINGS_VERSION;
@@ -137,7 +142,7 @@ static const uint8_t bootstrap_data[] = {
     0xea, 0x00, 0x00, 0x00, 0xe0
 };
 
-static void settings_erase_slots(void) {
+void settings_erase_slots(void) {
     driver_erase_bank(0, driver_get_launch_slot(), SETTINGS_BANK);
     driver_write_slot(bootstrap_data, driver_get_launch_slot(), SETTINGS_BANK, 0, sizeof(bootstrap_data));
     settings_slot = 1;
@@ -171,9 +176,9 @@ void settings_load(void) {
 		ui_reset_main_screen();
 
         // load bank 14 to SRAM -> set settings location to new -> unload bank 14 from SRAM
-        sram_switch_to_slot(14);
+        sram_switch_to_slot(14, SRAM_OFFSET_SIZE_DEFAULT);
         settings_location_legacy = false;
-        sram_switch_to_slot(0xFF);
+        sram_unload();
 
         // force new slot write
         settings_slot = 127;
@@ -214,8 +219,10 @@ void settings_save(void) {
     }
 
     uint8_t active_sram_slot = settings_local.active_sram_slot;
+    uint8_t active_sram_offset_size = settings_local.active_sram_offset_size;
     if (active_sram_slot == SRAM_SLOT_FIRST_BOOT) {
         settings_local.active_sram_slot = SRAM_SLOT_NONE;
+        settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
     }
 
     uint8_t bank = SETTINGS_BANK + (settings_slot >> 6);
@@ -227,6 +234,7 @@ void settings_save(void) {
     driver_write_slot(&settings_crc, driver_get_launch_slot(), bank, offset + 1022, 2);
 
     settings_local.active_sram_slot = active_sram_slot;
+    settings_local.active_sram_offset_size = active_sram_offset_size;
 
     ui_clear_work_indicator();
     settings_changed = false;

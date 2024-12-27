@@ -15,6 +15,7 @@
  * with CartFriend. If not, see <https://www.gnu.org/licenses/>. 
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,8 +35,15 @@
 #define BROWSE_SUB_LAUNCH 0
 #define BROWSE_SUB_INFO 1
 #define BROWSE_SUB_RENAME 2
+#define BROWSE_SUB_INSTALL_WW 3
+#define BROWSE_SUB_MANAGE_WW 4
 
-// in mbits
+#define WW_MANAGE_SUB_UPDATE_FULL 0
+#define WW_MANAGE_SUB_UPDATE_OS 1
+#define WW_MANAGE_SUB_UPDATE_BIOS 2
+#define WW_MANAGE_SUB_ERASE_FS 3
+
+// in Mbits
 static const uint8_t __far rom_size_table[] = {
     1, 2, 4, 8, 16, 24, 32, 48, 62, 128
 };
@@ -43,7 +51,8 @@ static const uint8_t __far rom_size_table[] = {
 #define CART_METADATA_SIZE 6
 typedef enum {
     CART_TYPE_NORMAL = 0,
-    CART_TYPE_WW_ATHENABIOS = 1
+    CART_TYPE_WW_ATHENABIOS = 1,
+    CART_TYPE_EMPTY = 2
 } cart_type_t;
 typedef struct __attribute__((packed)) {
     uint8_t type;
@@ -92,7 +101,7 @@ typedef struct __attribute__((packed)) {
 } cart_header_t;
 _Static_assert(sizeof(cart_header_t) == 32, "cart_header_t size error");
 
-#define CART_METADATA_GET(tbl, id) ((cart_metadata_t*) (((uint8_t*) (tbl)) + (entry_id * CART_METADATA_SIZE)))
+#define CART_METADATA_GET(tbl, id) ((cart_metadata_t*) (((uint8_t*) (tbl)) + ((id) * CART_METADATA_SIZE)))
 #define ENTRY_ID_MAX 128
 
 static void ui_browse_menu_build_line(uint8_t entry_id, void *userdata, char *buf, int buf_len, char *buf_right, int buf_right_len) {
@@ -117,9 +126,12 @@ static void ui_browse_menu_build_line(uint8_t entry_id, void *userdata, char *bu
                 (uint16_t) cart_metadata->ww_athenabios.major,
                 (uint16_t) cart_metadata->ww_athenabios.minor,
                 (uint16_t) cart_metadata->ww_athenabios.patch);
+        } else if (cart_metadata->type == CART_TYPE_EMPTY) {
+            buf_name[0] = 0;
         }
         uint8_t sub_slot = entry_id >> 4;
         entry_id &= 0xF;
+        if (settings_local.slot_type[entry_id] == SLOT_TYPE_8M_2M) sub_slot >>= 2;
         snprintf(buf, buf_len, lang_keys[LK_UI_BROWSE_SLOT], (uint16_t) (entry_id + 1), sub_slot == 0 ? ' ' : ('A' + sub_slot - 1), ((const char __far*) buf_name));
     }
 }
@@ -127,11 +139,24 @@ static void ui_browse_menu_build_line(uint8_t entry_id, void *userdata, char *bu
 static uint16_t __far browse_sub_lks[] = {
     LK_UI_BROWSE_POPUP_LAUNCH,
     LK_UI_BROWSE_POPUP_INFO,
-    LK_UI_BROWSE_POPUP_RENAME
+    LK_UI_BROWSE_POPUP_RENAME,
+    LK_UI_BROWSE_POPUP_INSTALL_WW,
+    LK_UI_BROWSE_POPUP_MANAGE
 };
 
 static void ui_browse_submenu_build_line(uint8_t entry_id, void *userdata, char *buf, int buf_len) {
     strncpy(buf, lang_keys[browse_sub_lks[entry_id]], buf_len);
+}
+
+static uint16_t __far ww_manage_sub_lks[] = {
+    LK_UI_WW_UPDATE_FULL,
+    LK_UI_WW_UPDATE_OS,
+    LK_UI_WW_UPDATE_BIOS,
+    LK_UI_WW_ERASE_FS
+};
+
+static void ui_ww_manage_build_line(uint8_t entry_id, void *userdata, char *buf, int buf_len, char *buf_right, int buf_right_len) {
+    strncpy(buf, lang_keys[ww_manage_sub_lks[entry_id]], buf_len);
 }
 
 static void ui_browse_save_select_build_line(uint8_t entry_id, void *userdata, char *buf, int buf_len, char *buf_right, int buf_right_len) {
@@ -181,41 +206,42 @@ static uint8_t iterate_carts(uint8_t *menu_list, uint8_t *cart_metadata_tbl, uin
 
         int16_t bank = 0xFF;
         while (bank >= 0x80) {
+            uint8_t entry_id = slot | ((bank & 0xF0) ^ 0xF0);
+            cart_metadata_t *cart_metadata = CART_METADATA_GET(cart_metadata_tbl, entry_id);
+            cart_metadata->type = CART_TYPE_EMPTY;
+
             _nmemset(&header, 0xFF, sizeof(header));
             if (ui_read_rom_header(&header, slot, bank)) {
                 if (is_valid_rom_header(&header)) {
-                    uint8_t entry_id = slot | ((bank & 0xF0) ^ 0xF0);
-                    if (!(settings_local.flags1 & SETT_FLAGS1_HIDE_SLOT_IDS)) {
-                        cart_metadata_t *cart_metadata = CART_METADATA_GET(cart_metadata_tbl, entry_id);
-
-                        if (header.ww_athenabios.magic == WW_ATHENABIOS_MAGIC) {
-                            cart_metadata->type = CART_TYPE_WW_ATHENABIOS;
-                            cart_metadata->ww_athenabios.major = header.ww_athenabios.major;
-                            cart_metadata->ww_athenabios.minor = header.ww_athenabios.minor;
-                            cart_metadata->ww_athenabios.patch = header.ww_athenabios.patch;
-                        } else {
-                            cart_metadata->type = CART_TYPE_NORMAL;
-                            cart_metadata->normal.id = header.id;
-                            cart_metadata->normal.version = header.version;
-                            cart_metadata->normal.checksum = header.checksum;
-                            cart_metadata->normal.publisher = header.publisher_id;
-                        }
-                    }
-                    menu_list[i++] = entry_id;
-
-                    if (settings_local.slot_type[slot] == SLOT_TYPE_MULTILINEAR_SOFT) {
-                        if (header.rom_size < sizeof(rom_size_table)) {
-                            uint16_t size_banks = ((uint16_t) rom_size_table[header.rom_size]) * 2;
-                            if (size_banks < 16) size_banks = 16;
-                            bank -= size_banks;
-                            continue;
-                        } else {
-                            break;
-                        }
+                    if (header.ww_athenabios.magic == WW_ATHENABIOS_MAGIC) {
+                        cart_metadata->type = CART_TYPE_WW_ATHENABIOS;
+                        cart_metadata->ww_athenabios.major = header.ww_athenabios.major;
+                        cart_metadata->ww_athenabios.minor = header.ww_athenabios.minor;
+                        cart_metadata->ww_athenabios.patch = header.ww_athenabios.patch;
+                    } else {
+                        cart_metadata->type = CART_TYPE_NORMAL;
+                        cart_metadata->normal.id = header.id;
+                        cart_metadata->normal.version = header.version;
+                        cart_metadata->normal.checksum = header.checksum;
+                        cart_metadata->normal.publisher = header.publisher_id;
                     }
                 }
             }
-            break;
+
+            if (cart_metadata->type != CART_TYPE_EMPTY || !(settings_local.flags1 & SETT_FLAGS1_HIDE_EMPTY_SLOTS)) {
+                menu_list[i++] = entry_id;
+            }
+
+            uint8_t min_size_banks = 128;
+            if (settings_local.slot_type[slot] == SLOT_TYPE_8M_2M  ) min_size_banks = 64;
+            if (settings_local.slot_type[slot] == SLOT_TYPE_8M_512K) min_size_banks = 16;
+
+            uint16_t size_banks = 0;
+            if (cart_metadata->type != CART_TYPE_EMPTY && header.rom_size < sizeof(rom_size_table)) {
+                size_banks = ((uint16_t) rom_size_table[header.rom_size]) * 2;
+            }
+            if (size_banks < min_size_banks) size_banks = min_size_banks;
+            bank -= size_banks;
         }
     }
     driver_lock();
@@ -311,7 +337,8 @@ void ui_browse_info(uint8_t slot) {
     }
 }
 
-void ui_browse(void) {
+__attribute__((noinline))
+static uint8_t ui_browse_inner(uint8_t *entry_id) {
     uint8_t menu_list[256];
     uint8_t cart_metadata[ENTRY_ID_MAX * CART_METADATA_SIZE];
     uint8_t i = 0;
@@ -329,7 +356,10 @@ void ui_browse(void) {
 
     uint16_t result = ui_menu_select(&menu);
     uint16_t subaction = 0;
-    if ((result & 0xFF) < 128) {
+    if ((result & 0xFF) < ENTRY_ID_MAX) {
+        *entry_id = result;
+        uint8_t slot_type = settings_local.slot_type[result & 0x0F];
+        bool is_ww = CART_METADATA_GET(cart_metadata, result & 0xFF)->type == CART_TYPE_WW_ATHENABIOS;
         if ((result & 0xFF00) == MENU_ACTION_B) {
             ui_popup_menu_state_t popup_menu = {
                 .list = menu_list,
@@ -338,8 +368,10 @@ void ui_browse(void) {
             };
             i = 0;
             menu_list[i++] = BROWSE_SUB_LAUNCH;
+            if (is_ww) menu_list[i++] = BROWSE_SUB_MANAGE_WW;
             menu_list[i++] = BROWSE_SUB_INFO;
             menu_list[i++] = BROWSE_SUB_RENAME;
+            if (!is_ww && (slot_type == SLOT_TYPE_SOFT || slot_type == SLOT_TYPE_8M_2M)) menu_list[i++] = BROWSE_SUB_INSTALL_WW;
             menu_list[i++] = MENU_ENTRY_END;
             subaction = ui_popup_menu_run(&popup_menu);
         }
@@ -357,30 +389,35 @@ void ui_browse(void) {
                 // figure out SRAM slots
                 i = 0;
                 for (uint8_t k = 0; k < SRAM_SLOTS; k++) {
-                    if (settings_local.sram_slot_mapping[k] == result) {
+                    if (settings_local.sram_slot_mapping[k] == (result & 0x0F)) {
                         menu_list[i++] = k;
                     }
                 }
                 uint8_t sram_slot = 0xFF;
-                if (i > 1) {
+                if (!is_ww && i > 1) {
                     menu_list[i++] = MENU_ENTRY_END;
                     menu.build_line_func = ui_browse_save_select_build_line;
                     menu.flags = MENU_B_AS_BACK;
                     ui_menu_init(&menu);
                     uint16_t result_sram = ui_menu_select(&menu);
                     if (result_sram == MENU_ENTRY_END) {
-                        return;
+                        return 0;
                     } else {
                         sram_slot = menu_list[result_sram & 0xFF];
                     }
-                } else if (i == 1) {
+                } else if (i > 0) {
                     sram_slot = menu_list[0];
                 }
 
-                sram_switch_to_slot(sram_slot);
+                uint8_t offset_size = SRAM_OFFSET_SIZE_DEFAULT;
+                if (slot_type == SLOT_TYPE_8M_2M  ) offset_size = SRAM_OFFSET_SIZE((result >= 0x10) ? 4 : 0, 4);
+                if (slot_type == SLOT_TYPE_8M_512K) offset_size = SRAM_OFFSET_SIZE((result >> 4) & 7, 1);
+                
+                sram_switch_to_slot(sram_slot, offset_size);
             } else {
                 if (settings_local.active_sram_slot == SRAM_SLOT_FIRST_BOOT) {
                     settings_local.active_sram_slot = SRAM_SLOT_NONE;
+                    settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
                     settings_mark_changed();
                 }
             }
@@ -410,6 +447,54 @@ void ui_browse(void) {
                     }
                     settings_mark_changed();
                 }
+            }
+        } else if (subaction == BROWSE_SUB_INSTALL_WW || subaction == BROWSE_SUB_MANAGE_WW) {
+            return subaction;
+        }
+    }
+
+    return 0;
+}
+
+void ui_browse(void) {
+    // ui_browse_inner() uses ~0.8KB of stack, so it's separated out
+    // keeping in mind other functions which require a lot of stack
+    uint8_t entry_id;
+    uint8_t subaction = ui_browse_inner(&entry_id);
+    uint8_t slot = entry_id & 0x0F;
+    uint8_t bank = 0xF0 - (entry_id & 0xF0);
+    uint8_t menu_list[8];
+
+    if (subaction == BROWSE_SUB_INSTALL_WW) {
+        if (ui_dialog_run(0, 1, LK_DIALOG_WW_INSTALL, LK_DIALOG_YES_NO) == 0) {
+            ww_ui_erase_userdata(slot, bank);
+            ww_ui_install_full(slot, bank);
+        }
+    } else if (subaction == BROWSE_SUB_MANAGE_WW) {
+        ui_reset_main_screen();
+        ui_menu_state_t menu = {
+            .list = menu_list,
+            .build_line_func = ui_ww_manage_build_line,
+            .build_line_data = menu_list,
+            .flags = MENU_B_AS_BACK
+        };
+        int i = 0;
+        menu_list[i++] = WW_MANAGE_SUB_UPDATE_FULL;
+        menu_list[i++] = WW_MANAGE_SUB_UPDATE_OS;
+        menu_list[i++] = WW_MANAGE_SUB_UPDATE_BIOS;
+        menu_list[i++] = WW_MANAGE_SUB_ERASE_FS;
+        menu_list[i++] = MENU_ENTRY_END;
+        ui_menu_init(&menu);
+        uint16_t result = ui_menu_select(&menu);
+        if (result == WW_MANAGE_SUB_UPDATE_FULL) {
+            ww_ui_install_full(slot, bank);
+        } else if (result == WW_MANAGE_SUB_UPDATE_BIOS) {
+            ww_ui_install_bios(slot, bank);
+        } else if (result == WW_MANAGE_SUB_UPDATE_OS) {
+            ww_ui_install_os(slot, bank);
+        } else if (result == WW_MANAGE_SUB_ERASE_FS) {
+            if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
+                ww_ui_erase_userdata(slot, bank);
             }
         }
     }

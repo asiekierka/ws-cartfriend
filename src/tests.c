@@ -23,11 +23,13 @@
 #include "ui.h"
 #include "ws/hardware.h"
 
+#ifdef USE_SLOT_SYSTEM
 const char __far msg_save_read_write_error1[] = "%02X%04X %02X";
 
 __attribute__((noinline))
 static void test_save_read_write_error_emit(uint8_t x, uint8_t y, uint16_t bank, uint16_t offset, uint8_t expected) {
     settings_local.active_sram_slot = 0xFF;
+    settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
     outportb(IO_BANK_RAM, 0);
     sram_ui_quiet = false;
 
@@ -50,10 +52,11 @@ static inline bool test_save_read_write_error(uint8_t x, uint8_t y, uint16_t ban
 
 bool test_save_read_write(uint8_t x, uint8_t y, uint8_t slot) {
     settings_local.active_sram_slot = slot;
+    settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
     sram_ui_quiet = true;
 
     // Erase SRAM slot
-    sram_erase(slot);
+    sram_erase(slot, SRAM_OFFSET_SIZE_DEFAULT);
 
     // Write test pattern to SRAM
     for (int i = 0; i < 8; i++) {
@@ -82,9 +85,9 @@ bool test_save_read_write(uint8_t x, uint8_t y, uint8_t slot) {
     ui_bg_putc(x, y, '.', 0);
 
     // Read/Write SRAM
-    sram_switch_to_slot(0xFF);
+    sram_unload();
     ui_bg_putc(x + 1, y, '.', 0);
-    sram_switch_to_slot(slot);
+    sram_switch_to_slot(slot, SRAM_OFFSET_SIZE_DEFAULT);
     ui_bg_putc(x + 2, y, '.', 0);
 
     // Compare SRAM
@@ -128,9 +131,9 @@ bool test_save_read_write(uint8_t x, uint8_t y, uint8_t slot) {
     ui_bg_putc(x + 4, y, '.', 0);
 
     // Read/Write SRAM
-    sram_switch_to_slot(0xFF);
+    sram_unload();
     ui_bg_putc(x + 5, y, '.', 0);
-    sram_switch_to_slot(slot);
+    sram_switch_to_slot(slot, SRAM_OFFSET_SIZE_DEFAULT);
     ui_bg_putc(x + 6, y, '.', 0);
 
     // Compare SRAM
@@ -148,7 +151,7 @@ bool test_save_read_write(uint8_t x, uint8_t y, uint8_t slot) {
     ui_bg_putc(x + 7, y, UI_GLYPH_CHECK, 0);
 
     // Erase SRAM slot
-    sram_erase(slot);
+    sram_erase(slot, SRAM_OFFSET_SIZE_DEFAULT);
 
     settings_local.active_sram_slot = 0xFF;
     outportb(IO_BANK_RAM, 0);
@@ -159,3 +162,4 @@ bool test_save_read_write(uint8_t x, uint8_t y, uint8_t slot) {
 
     return true;
 }
+#endif

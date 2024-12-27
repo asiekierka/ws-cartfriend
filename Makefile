@@ -6,10 +6,11 @@ include $(WONDERFUL_TOOLCHAIN)/target/wswan/small/makedefs.mk
 TARGET ?= generic
 
 OBJDIR := obj/$(TARGET)
+ELF_STAGE1 := obj/$(TARGET)_stage1.elf
 MKDIRS := $(OBJDIR)
 LIBS := -lwsx -lws
 CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections
-LDFLAGS := $(WF_ARCH_LDFLAGS) -L$(WF_TARGET_DIR)/lib -Wl,--gc-sections
+LDFLAGS := -T$(WF_LDSCRIPT) $(WF_ARCH_LDFLAGS) -L$(WF_TARGET_DIR)/lib
 
 SRCDIRS := obj/assets src src/$(TARGET)
 CSOURCES := $(foreach dir,$(SRCDIRS),$(notdir $(wildcard $(dir)/*.c)))
@@ -28,8 +29,11 @@ vpath %.s $(SRCDIRS)
 
 all: CartFriend_$(TARGET).wsc compile_commands.json
 
-CartFriend_$(TARGET).wsc: $(OBJECTS) | $(OBJDIR)
-	$(ROMLINK) -v -o $@ --output-elf $@.elf -- $(OBJECTS) $(LDFLAGS) $(LIBS)
+CartFriend_$(TARGET).wsc: $(ELF_STAGE1)
+	$(BUILDROM) -v -o $@ --output-elf $@.elf $<
+
+$(ELF_STAGE1): $(OBJECTS) | $(OBJDIR)
+	$(CC) -r -o $(ELF_STAGE1) $(OBJECTS) $(LDFLAGS) $(LIBS)
 
 $(OBJDIR)/%.o: %.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -MJ $(patsubst %.o,%.cc.json,$@) -c -o $@ $<

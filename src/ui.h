@@ -37,8 +37,8 @@ typedef enum {
 #define UI_PAL_PBAR    10
 #define UI_PAL_LIGHT   11
 
-#define SCREEN1 ((uint16_t*) 0x1800)
-#define SCREEN2 ((uint16_t*) 0x3800)
+extern uint16_t SCREEN1[];
+extern uint16_t SCREEN2[];
 
 extern const char __far* const __far* lang_keys;
 extern uint8_t ui_low_battery_flag;
@@ -170,3 +170,7 @@ void ui_about(void); // ui_about.c
 void ui_browse(void); // ui_browse.c
 void ui_settings(void); // ui_settings.c
 void ui_tools(void); // ui_tools.c
+
+// ui_tools.c utilities
+void ui_tool_xmodem_ui_message(uint16_t lk_msg);
+void ui_tool_xmodem_ui_step(uint32_t bytes);

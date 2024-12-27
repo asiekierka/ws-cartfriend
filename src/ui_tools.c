@@ -53,12 +53,12 @@ static void ui_tool_menu_build_line(uint8_t entry_id, void *userdata, char *buf,
     }
 }
 
-static void ui_tool_xmodem_ui_message(uint16_t lk_msg) {
+void ui_tool_xmodem_ui_message(uint16_t lk_msg) {
     ui_fill_line(13, 0);
     ui_puts_centered(false, 13, 0, lang_keys[lk_msg]);
 }
 
-static void ui_tool_xmodem_ui_step(uint32_t bytes) {
+void ui_tool_xmodem_ui_step(uint32_t bytes) {
     uint8_t line = inportb(IO_LCD_LINE);
     if (line >= 136 || line < 72) {
         ui_fill_line(14, 0);
@@ -82,8 +82,6 @@ static void ui_tool_sramcode_bfb() {
 
     xmodem_open_default();
     if (xmodem_recv_start() == XMODEM_OK) {
-        ui_tool_xmodem_ui_message(LK_UI_XMODEM_IN_PROGRESS);
-
         while (active) {
             uint8_t result = xmodem_recv_block(code_ptr);
             switch (result) {
@@ -96,6 +94,8 @@ static void ui_tool_sramcode_bfb() {
                     break;
                 case XMODEM_OK:
                     if (code_blocks_left == 0xFFFF) {
+                        ui_tool_xmodem_ui_message(LK_UI_XMODEM_IN_PROGRESS);
+
                         if (buffer[0] != 'b' || buffer[1] != 'F') {
                             ui_tool_xmodem_ui_message(LK_UI_XMODEM_INVALID_FILE);
                             active = false;
@@ -142,7 +142,7 @@ static void ui_tool_sramcode_bfb() {
 }
 
 static void ui_tool_sramcode_xm() {
-    sram_switch_to_slot(0xFF);
+    sram_unload();
 
     ui_reset_main_screen();
     ui_puts_centered(false, 2, 0, lang_keys[LK_UI_XMODEM_RECEIVE]);
@@ -154,8 +154,6 @@ static void ui_tool_sramcode_xm() {
 
     xmodem_open_default();
     if (xmodem_recv_start() == XMODEM_OK) {
-        ui_tool_xmodem_ui_message(LK_UI_XMODEM_IN_PROGRESS);
-
         while (active) {
             uint8_t result = xmodem_recv_block(sram_ptr);
             switch (result) {
@@ -167,6 +165,9 @@ static void ui_tool_sramcode_xm() {
                     active = false;
                     break;
                 case XMODEM_OK:
+                    if (sram_incrs == 0) {
+                        ui_tool_xmodem_ui_message(LK_UI_XMODEM_IN_PROGRESS);
+                    }
                     sram_incrs++;
                     if (sram_incrs < 512) {
                         ui_tool_xmodem_ui_step((uint32_t) sram_incrs << 7);
@@ -218,7 +219,7 @@ void ui_tools(void) {
         } break;
 #ifndef TARGET_flash_masta
         case MENU_TOOL_IPL_SRAM: {
-            sram_switch_to_slot(0xFF);
+            sram_unload();
             for (int i = 0; i < 8; i++) {
                 outportb(IO_BANK_RAM, 0xF8 | i);
                 if (inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_COLOR) {

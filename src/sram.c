@@ -50,9 +50,11 @@ static inline uint8_t sram_get_bank(uint8_t sram_slot, uint16_t sub_bank) {
 bool sram_copy_to_buffer_check_flash(void* restrict s1, uint16_t offset);
 bool sram_copy_from_bank1(uint16_t offset, uint16_t words);
 
-static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
+static void sram_backup_restore_slot(uint8_t sram_slot, uint8_t offset_size, bool is_restore) {
     uint8_t driver_slot = driver_get_launch_slot();
     uint8_t buffer[256];
+    uint8_t bank_offset = offset_size & 0xF;
+    uint8_t bank_size = offset_size >> 4;
     ui_pbar_state_t pbar = {
         .x = 0,
         .y = 13,
@@ -71,8 +73,8 @@ static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
 
     if (_CS >= 0x2000) {
         if (is_restore) {
-            pbar.step_max = 256;
-            for (uint16_t i = 0; i < 256; i++) {
+            pbar.step_max = 32 * bank_size;
+            for (uint16_t i = 0; i < 32 * bank_size; i++) {
                 pbar.step = i;
                 if (!sram_ui_quiet) {
                     ui_pbar_draw(&pbar);
@@ -81,7 +83,7 @@ static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
 
                 if (!(i & 31)) {
                     outportb(IO_BANK_RAM, i >> 5);
-                    uint8_t bank = sram_get_bank(sram_slot, i >> 5);
+                    uint8_t bank = sram_get_bank(sram_slot, (i >> 5) + bank_offset);
                     outportb(IO_BANK_ROM1, bank);
                     asm volatile("" ::: "memory");
                 }
@@ -93,15 +95,39 @@ static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
             }
         } else {
             // for backup, erase slots first
-            for (uint8_t i = 0; i < 8; i++) {
+            if (bank_size == 1) {
+                // if odd slot, move from SRAM bank 0 to SRAM bank 1
+                if (bank_offset & 1) {
+                    for (uint16_t i = 0; i < 256; i++) {
+                        outportb(IO_BANK_RAM, 0);
+                        memcpy(buffer, MK_FP(0x1000, i << 8), 256);
+                        outportb(IO_BANK_RAM, 1);
+                        memcpy(MK_FP(0x1000, i << 8), buffer, 256);
+                    }
+                }
+
+                // copy data from other bank to SRAM bank 0/1
+                outportb(IO_BANK_RAM, (bank_offset & 1) ^ 1);
+                outportb(IO_BANK_ROM1, sram_get_bank(sram_slot, (bank_offset ^ 1)));
+                sram_copy_from_bank1(0, 32768 >> 1);
+                sram_copy_from_bank1(32768, 32768 >> 1);
+
+                // set bank size to 2
+                bank_size = 2;
+                bank_offset &= ~1;
+            } else if ((bank_size & 1) || (bank_offset & 1)) {
+                error_critical(ERROR_CODE_SRAM_ODD_SIZE_UNHANDLED, offset_size);
+            }
+            
+            for (uint8_t i = 0; i < bank_size; i++) {
                 ui_step_work_indicator();
-                uint8_t bank = sram_get_bank(sram_slot, i);
+                uint8_t bank = sram_get_bank(sram_slot, i + bank_offset);
                 driver_erase_bank(0, driver_slot, bank);
             }
 
-            pbar.step_max = 2048;
+            pbar.step_max = 256 * bank_size;
             uint8_t bank;
-            for (uint16_t i = 0; i < 2048; i++) {
+            for (uint16_t i = 0; i < 256 * bank_size; i++) {
                 pbar.step = i;
                 if (!(i & 7)) {
                     if (!sram_ui_quiet) {
@@ -110,7 +136,7 @@ static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
                     if (!(i & 255)) {
                         outportb(IO_BANK_RAM, i >> 8);
                         asm volatile("" ::: "memory");
-                        bank = sram_get_bank(sram_slot, i >> 8);
+                        bank = sram_get_bank(sram_slot, (i >> 8) + bank_offset);
                     }
                 }
                 ui_step_work_indicator();
@@ -134,7 +160,10 @@ static void sram_backup_restore_slot(uint8_t sram_slot, bool is_restore) {
     ui_update_indicators();
 }
 
-void sram_erase(uint8_t sram_slot) {
+void sram_erase(uint8_t sram_slot, uint8_t offset_size) {
+    uint8_t bank_offset = offset_size & 0xF;
+    uint8_t bank_size = offset_size >> 4;
+
     if (!sram_ui_quiet) {
         ui_reset_main_screen();
         ui_puts_centered(false, 2, 0, lang_keys[LK_UI_MSG_ERASE_SRAM]);
@@ -147,10 +176,10 @@ void sram_erase(uint8_t sram_slot) {
     };
 
     if (sram_slot == SRAM_SLOT_NONE) {
-        pbar.step_max = 128;
+        pbar.step_max = 16 * bank_size;
         ui_pbar_init(&pbar);
 
-        for (uint16_t i = 0; i < 128; i++) { /* 16 * 8 */
+        for (uint16_t i = 0; i < 16 * bank_size; i++) {
             pbar.step = i;
             if (!sram_ui_quiet) ui_pbar_draw(&pbar);
             ui_step_work_indicator();
@@ -162,7 +191,7 @@ void sram_erase(uint8_t sram_slot) {
 
         ui_clear_work_indicator();
     } else if (sram_slot == SRAM_SLOT_ALL) {
-        pbar.step_max = 8 * SRAM_SLOTS;
+        pbar.step_max = bank_size * SRAM_SLOTS;
         ui_pbar_init(&pbar);
 
         uint8_t driver_slot = driver_get_launch_slot();
@@ -172,21 +201,21 @@ void sram_erase(uint8_t sram_slot) {
             if (!sram_ui_quiet) ui_pbar_draw(&pbar);
             ui_step_work_indicator();
 
-            uint8_t rom_slot = sram_get_bank(i >> 3, i & 7);
+            uint8_t rom_slot = sram_get_bank(i / bank_size, (i % bank_size) + bank_offset);
             driver_erase_bank(0, driver_slot, rom_slot);
         }
     } else {
-        pbar.step_max = 8;
+        pbar.step_max = bank_size;
         ui_pbar_init(&pbar);
 
         uint8_t driver_slot = driver_get_launch_slot();
 
-        for (uint8_t i = 0; i < 8; i++) {
+        for (uint8_t i = 0; i < bank_size; i++) {
             pbar.step = i;
             if (!sram_ui_quiet) ui_pbar_draw(&pbar);
             ui_step_work_indicator();
 
-            uint8_t rom_slot = sram_get_bank(sram_slot, i);
+            uint8_t rom_slot = sram_get_bank(sram_slot, i + bank_offset);
             driver_erase_bank(0, driver_slot, rom_slot);
         }
     }
@@ -194,13 +223,16 @@ void sram_erase(uint8_t sram_slot) {
     ui_update_indicators();
 }
 
-void sram_switch_to_slot(uint8_t sram_slot) {
-    if (settings_local.active_sram_slot == sram_slot) return;
+void sram_switch_to_slot(uint8_t sram_slot, uint8_t offset_size) {
+    if (settings_local.active_sram_slot == sram_slot && settings_local.active_sram_offset_size == offset_size) {
+        return;
+    }
 
     if (settings_local.active_sram_slot == SRAM_SLOT_FIRST_BOOT) {
         // on first boot, assume SRAM contents are intended
         if (sram_slot != SRAM_SLOT_NONE) {
             settings_local.active_sram_slot = sram_slot;
+            settings_local.active_sram_offset_size = offset_size;
             settings_mark_changed();
         }
         return;
@@ -213,19 +245,21 @@ void sram_switch_to_slot(uint8_t sram_slot) {
     }
 
     if (settings_local.active_sram_slot < SRAM_SLOTS) {
-        sram_backup_restore_slot(settings_local.active_sram_slot, false);
+        sram_backup_restore_slot(settings_local.active_sram_slot, settings_local.active_sram_offset_size, false);
         settings_local.active_sram_slot = SRAM_SLOT_NONE;
+        settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
         settings_mark_changed();
     }
 
     if (sram_slot < SRAM_SLOTS) {
-        sram_backup_restore_slot(sram_slot, true);
+        sram_backup_restore_slot(sram_slot, offset_size, true);
         settings_local.active_sram_slot = sram_slot;
+        settings_local.active_sram_offset_size = offset_size;
         settings_mark_changed();
     }
 }
 #else
-void sram_switch_to_slot(uint8_t sram_slot) {
+void sram_switch_to_slot(uint8_t sram_slot, uint8_t offset_size) {
     // stub
 }
 #endif

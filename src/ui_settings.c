@@ -36,7 +36,9 @@ typedef enum {
     MENU_OPT_SLOTMAP,
     MENU_OPT_UNLOAD_SRAM,
     MENU_OPT_HIDE_SLOT_IDS,
+    MENU_OPT_HIDE_EMPTY_SLOTS,
     MENU_OPT_REVERTSETTINGS,
+    MENU_OPT_FACTORYRESETSETTINGS,
     MENU_OPT_ADVANCED,
     MENU_OPT_LANGUAGE,
     MENU_OPT_TEXT_WIDTH
@@ -57,7 +59,9 @@ static uint16_t __far ui_opt_lks[] = {
     LK_UI_SETTINGS_SLOTMAP,
     LK_UI_SETTINGS_UNLOAD_SRAM,
     LK_UI_SETTINGS_HIDE_SLOT_IDS,
+    LK_UI_SETTINGS_HIDE_EMPTY_SLOTS,
     LK_UI_SETTINGS_REVERT,
+    LK_UI_SETTINGS_FACTORY_RESET,
     LK_UI_SETTINGS_ADVANCED,
     LK_UI_SETTINGS_LANGUAGE,
     LK_UI_SETTINGS_TEXT_WIDTH
@@ -76,6 +80,9 @@ static void ui_opt_menu_build_line(uint8_t entry_id, void *userdata, char *buf, 
         strncpy(buf, lang_keys[ui_opt_lks[entry_id]], buf_len);
         if (entry_id == MENU_OPT_HIDE_SLOT_IDS) {
             bool yes = settings_local.flags1 & SETT_FLAGS1_HIDE_SLOT_IDS;
+            strncpy(buf_right, lang_keys[yes ? LK_CONFIG_YES : LK_CONFIG_NO], buf_right_len);
+        } else if (entry_id == MENU_OPT_HIDE_EMPTY_SLOTS) {
+            bool yes = settings_local.flags1 & SETT_FLAGS1_HIDE_EMPTY_SLOTS;
             strncpy(buf_right, lang_keys[yes ? LK_CONFIG_YES : LK_CONFIG_NO], buf_right_len);
         } else if (entry_id == MENU_OPT_THEME) {
             if (ws_system_color_active()) {
@@ -148,7 +155,7 @@ static void ui_opt_menu_savemap_build_line(uint8_t entry_id, void *userdata, cha
 static uint8_t ui_savemap_next(uint8_t slot) {
     // 0xFF -> 0
     for (uint8_t i = slot + 1; i < GAME_SLOTS; i++) {
-        if (settings_local.slot_type[i] == SLOT_TYPE_SOFT || settings_local.slot_type[i] == SLOT_TYPE_MULTILINEAR_SOFT) {
+        if (settings_local.slot_type[i] != SLOT_TYPE_LAUNCHER) {
             return i;
         }
     }
@@ -157,23 +164,26 @@ static uint8_t ui_savemap_next(uint8_t slot) {
 
 static uint8_t ui_savemap_prev(uint8_t slot) {
     for (uint8_t i = slot == 0xFF ? GAME_SLOTS : (slot - 1); i != 0xFF; i--) {
-        if (settings_local.slot_type[i] == SLOT_TYPE_SOFT || settings_local.slot_type[i] == SLOT_TYPE_MULTILINEAR_SOFT) {
+        if (settings_local.slot_type[i] != SLOT_TYPE_LAUNCHER) {
             return i;
         }
     }
     return 0xFF;
 }
 
+static const uint16_t __far slotmap_lks[] = {
+    LK_UI_SLOTMAP_SOFT,
+    LK_UI_SLOTMAP_LAUNCHER,
+    LK_UI_SLOTMAP_8MB_512KB,
+    LK_UI_SLOTMAP_8MB_2MB
+};
+
 static void ui_opt_menu_slotmap_build_line(uint8_t entry_id, void *userdata, char *buf, int buf_len, char *buf_right, int buf_right_len) {
     if (entry_id < GAME_SLOTS) {
         snprintf(buf, buf_len, lang_keys[LK_UI_SLOTMAP_SLOT], entry_id + 1);
         uint8_t slot_type = settings_local.slot_type[entry_id];
-        if (slot_type == SLOT_TYPE_SOFT) {
-            strncpy(buf_right, lang_keys[LK_UI_SLOTMAP_SOFT], buf_right_len);
-        } else if (slot_type == SLOT_TYPE_LAUNCHER) {
-            strncpy(buf_right, lang_keys[LK_UI_SLOTMAP_LAUNCHER], buf_right_len);
-        } else if (slot_type == SLOT_TYPE_MULTILINEAR_SOFT) {
-            strncpy(buf_right, lang_keys[LK_UI_SLOTMAP_MULTILINEAR_SOFT], buf_right_len);
+        if (slot_type <= SLOT_TYPE_8M_2M) {
+            strncpy(buf_right, lang_keys[slotmap_lks[slot_type]], buf_right_len);
         } else if (slot_type == SLOT_TYPE_UNUSED) {
             strncpy(buf_right, lang_keys[LK_UI_SLOTMAP_UNUSED], buf_right_len);
         }
@@ -182,7 +192,8 @@ static void ui_opt_menu_slotmap_build_line(uint8_t entry_id, void *userdata, cha
 
 static const uint8_t __far slotmap_order[] = {
     SLOT_TYPE_SOFT,
-    SLOT_TYPE_MULTILINEAR_SOFT,
+    SLOT_TYPE_8M_512K,
+    SLOT_TYPE_8M_2M,
     SLOT_TYPE_UNUSED
 };
 
@@ -204,6 +215,8 @@ static void ui_opt_menu_erase_sram_build_line(uint8_t entry_id, void *userdata, 
         strncpy(buf, lang_keys[LK_UI_ERASE_UNDO_SRAM], buf_len);
     } else if (entry_id == 0xED) {
         strncpy(buf, lang_keys[LK_UI_ERASE_TEST_ALL_SAVE_DATA], buf_len);
+    } else if (entry_id == 0xEC) {
+        strncpy(buf, lang_keys[LK_UI_ERASE_ALL_SAVE_BLOCKS], buf_len);
     }
 }
 
@@ -232,6 +245,7 @@ Reselect:
         if (settings_local.active_sram_slot != 0xFE) {
             if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
                 settings_local.active_sram_slot = 0xFE;
+                settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
                 settings_mark_changed();
             }
         } else {
@@ -273,6 +287,7 @@ void ui_settings(void) {
     menu_list[i++] = MENU_OPT_LANGUAGE;
 #ifdef USE_SLOT_SYSTEM
     menu_list[i++] = MENU_OPT_HIDE_SLOT_IDS;
+    menu_list[i++] = MENU_OPT_HIDE_EMPTY_SLOTS;
 #endif
     menu_list[i++] = MENU_ENTRY_DIVIDER;
 #ifdef USE_SLOT_SYSTEM
@@ -289,6 +304,7 @@ void ui_settings(void) {
     if (settings_changed) {
         menu_list[i++] = MENU_OPT_REVERTSETTINGS;
     }
+    menu_list[i++] = MENU_OPT_FACTORYRESETSETTINGS;
     menu_list[i++] = MENU_ENTRY_END;
 
     ui_menu_state_t menu = {
@@ -356,7 +372,7 @@ Reselect:
         goto Reselect;
     } else if (result == MENU_OPT_UNLOAD_SRAM) {
         if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
-            sram_switch_to_slot(0xFF);
+            sram_unload();
             ui_reset_main_screen();
         }
     } else if (result == MENU_OPT_SAVE_MANAGEMENT) {
@@ -364,6 +380,7 @@ Reselect:
         for (uint8_t j = 0; j < SRAM_SLOTS; j++) {
             menu_list[i++] = j;
         }
+        menu_list[i++] = 0xEC;
         menu_list[i++] = 0xEF;
         menu_list[i++] = 0xED;
         menu_list[i++] = 0xEE;
@@ -382,21 +399,35 @@ SaveMgmtReselect:
 
         if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
             if (result < SRAM_SLOTS) {
-                // if active, abandon SRAM data too
+                // if active, erase in-SRAM data too
                 if (result == settings_local.active_sram_slot) {
+                    sram_erase(SRAM_SLOT_NONE, SRAM_OFFSET_SIZE_DEFAULT);
                     settings_local.active_sram_slot = 0xFF;
+                    settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
                     settings_mark_changed();
                 }
                 // erase slot
-                sram_erase(result);
+                sram_erase(result, SRAM_OFFSET_SIZE_DEFAULT);
+            } else if (result == 0xEC || result == 0xEF) {
+                // erase all save blocks
+                sram_erase(SRAM_SLOT_ALL, SRAM_OFFSET_SIZE_DEFAULT);
+                if (result == 0xEF) {
+                    // and save data
+                    sram_erase(SRAM_SLOT_NONE, SRAM_OFFSET_SIZE_DEFAULT);
+                }
+                settings_local.active_sram_slot = 0xFF;
+                settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
+                settings_mark_changed();
             } else if (result == 0xEF) {
                 // erase everything
-                sram_erase(SRAM_SLOT_ALL);
+                sram_erase(SRAM_SLOT_ALL, SRAM_OFFSET_SIZE_DEFAULT);
                 settings_local.active_sram_slot = 0xFF;
+                settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
                 settings_mark_changed();
             } else if (result == 0xEE) {
                 // discard in-SRAM changes
                 settings_local.active_sram_slot = 0xFF;
+                settings_local.active_sram_offset_size = SRAM_OFFSET_SIZE_DEFAULT;
                 settings_mark_changed();
             } else if (result == 0xED) {
                 // erase + test everything
@@ -451,6 +482,11 @@ SaveMgmtReselect:
         if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
             settings_load();
             settings_refresh();
+        }
+    } else if (result == MENU_OPT_FACTORYRESETSETTINGS) {
+        if (ui_dialog_run(0, 1, LK_DIALOG_CONFIRM, LK_DIALOG_YES_NO) == 0) {
+            settings_erase_slots();
+            crt0_restart();
         }
     }
 }

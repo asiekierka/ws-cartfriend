@@ -25,3 +25,8 @@
 
 // 'ATHB'
 #define WW_ATHENABIOS_MAGIC 0x42485441
+
+void ww_ui_erase_userdata(uint16_t slot, uint16_t bank);
+void ww_ui_install_full(uint16_t slot, uint16_t bank);
+void ww_ui_install_bios(uint16_t slot, uint16_t bank);
+void ww_ui_install_os(uint16_t slot, uint16_t bank);

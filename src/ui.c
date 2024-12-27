@@ -35,6 +35,11 @@ extern uint8_t ui_low_battery_flag;
 #endif
 #define MAIN_SCREEN_WIDTH ((settings_local.flags1 & SETT_FLAGS1_WIDE_SCREEN) ? 28 : 27)
 
+__attribute__((section(".iram_1800.screen1")))
+uint16_t SCREEN1[(0x3800 - 0x1800) >> 1];
+__attribute__((section(".iram_3800.screen2")))
+uint16_t SCREEN2[0x800];
+
 static const uint16_t __far theme_colorways[UI_THEME_COUNT][10] = {
     { // Light
         RGB(15, 15, 15), // Background color (Screen 1)

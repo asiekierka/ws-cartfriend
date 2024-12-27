@@ -22,11 +22,11 @@
 
 #define SLOT_TYPE_SOFT 0
 #define SLOT_TYPE_LAUNCHER 1
-#define SLOT_TYPE_MULTILINEAR_SOFT 2 /* Tentative */
-#define SLOT_TYPE_APPENDED_FILES 3 /* Tentative */
+#define SLOT_TYPE_8M_512K 2 
+#define SLOT_TYPE_8M_2M 3
 #define SLOT_TYPE_UNUSED 0xFF
 
-#define SETTINGS_VERSION 5
+#define SETTINGS_VERSION 6
 
 #define SRAM_SLOT_ALL 0xFD
 #define SRAM_SLOT_FIRST_BOOT 0xFE
@@ -48,10 +48,14 @@ typedef struct __attribute__((packed)) {
 
 	uint8_t flags1; // 424
 	uint8_t language; // 425
+
+	// bit 0-3: offset (0-7)
+	// bit 4-7: size (1-8)
+	uint8_t active_sram_offset_size; // 426
 } settings_t;
 
 #if __STDC_VERSION__ >= 201112L
-_Static_assert(sizeof(settings_t) == 425, "settings_t size error");
+_Static_assert(sizeof(settings_t) == 426, "settings_t size error");
 #endif
 
 #define SETT_FLAGS1_HIDE_SLOT_IDS 0x01
@@ -60,12 +64,14 @@ _Static_assert(sizeof(settings_t) == 425, "settings_t size error");
 #define SETT_FLAGS1_SERIAL_9600BPS 0x08
 #define SETT_FLAGS1_WIDE_SCREEN 0x10
 #define SETT_FLAGS1_FORCE_FAST_SRAM 0x20
+#define SETT_FLAGS1_HIDE_EMPTY_SLOTS 0x40
 
 extern settings_t settings_local;
 extern bool settings_changed;
 extern const char __far settings_magic[4];
 
 void settings_reset(void);
+void settings_erase_slots(void);
 void settings_load(void);
 void settings_refresh(void);
 void settings_mark_changed(void);
