@@ -102,34 +102,32 @@ uint8_t xmodem_recv_block(uint8_t __far* block) {
 	uint8_t retries = 10;
 
 	while (1) {
-		if ((retries--) == 0) return XMODEM_ERROR;
 		if (xmodem_poll_exit()) return XMODEM_SELF_CANCEL;
 
-		int16_t r = ws_serial_getc_nonblock();
-		if (r >= 0) {
-			if (r == CAN) {
-				return XMODEM_CANCEL;
-			} else if (r == SOH) {
-				uint8_t result = xmodem_read_block(block);
-				if (result == XMODEM_OK) {
-					return XMODEM_OK;
-				} else if (result == XMODEM_ERROR) {
-					ws_serial_putc(NAK);
-				} else {
-					ws_serial_putc(CAN);
-					return XMODEM_ERROR;
-				}
-			} else if (r == EOT) {
-				ws_serial_putc(ACK);
-				return XMODEM_COMPLETE;
-			} else {
-				// TODO: Is this right?
+		uint8_t r = ws_serial_getc();
+		if (r == CAN) {
+			return XMODEM_CANCEL;
+		} else if (r == SOH) {
+			uint8_t result = xmodem_read_block(block);
+			if (result == XMODEM_OK) {
+				return XMODEM_OK;
+			} else if (result == XMODEM_ERROR) {
 				ws_serial_putc(NAK);
+			} else {
+				ws_serial_putc(CAN);
+				return XMODEM_ERROR;
 			}
+		} else if (r == EOT) {
+			ws_serial_putc(ACK);
+			return XMODEM_COMPLETE;
+		} else {
+			// TODO: Is this right?
+			ws_serial_putc(NAK);
 		}
+		if ((retries--) == 0) return XMODEM_ERROR;
 
-		ws_hwint_enable(HWINT_SERIAL_RX);
-		cpu_halt();
+		// ws_hwint_enable(HWINT_SERIAL_RX);
+		// cpu_halt();
 	}
 }
 
