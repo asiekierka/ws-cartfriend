@@ -28,6 +28,16 @@ The "Browse" tab allows:
 * Verifying basic software information (B -> Info),
 * Renaming software slots (B -> Rename).
 
+#### WW installation
+
+One can use the (B -> Install WW) option to create a WW environment on the cartridge. For this, the following is required:
+
+- an RS-232 serial cable,
+- a way to transfer files via XMODEM (like Tera Term on Windows, or lrzsz on Linux),
+- a legal copy of the FreyaOS .bin update file (included on the CD in the `WWitch/fbin` directory).
+
+A bundled copy of an open-source clean room BIOS reimplementation called AthenaBIOS is used. As the project is still in development, 100% compatibility with WW software is not guaranteed - please report bugs [here](https://github.com/OpenWitch/AthenaOS/issues).
+
 ### Tools
 
 The "Tools" tab provides small tools useful for development:
@@ -39,11 +49,13 @@ The "Tools" tab provides small tools useful for development:
 The "Settings" tab allows configuring CartFriend.
 
 * Hide slot IDs in menu - by default, CartFriend will label unnamed slots using their ID (publisher ID, game ID, game version, checksum). If this option is enabled, nothing will be shown for unnamed slots.
+* Hide empty slots - if this option is enabled, slots without valid software flashed to them will not be displayed.
 * Slot type config - change the type of a slot.
-  * Launcher - the slot CartFriend was launched from; cannot be changed.
-  * Soft - one program (takes up entire slot).
-  * Multi(Linear)Soft - multiple <=1MB programs (in 1MB increments). Such a slot cannot make use of save data.
-  * Unused - the slot is not used.
+  * `Launcher` - the slot CartFriend was launched from; cannot be changed.
+  * `1x64Mb/ 4Mb SRAM` - one program, which takes up the entire slot.
+  * `8x 6Mb/.5Mb SRAM` - eight programs, which takes up the slot in 1MB increments. Each program gets 64KB of SRAM.
+  * `2x 6Mb/ 2Mb SRAM` - two programs, which take up the slot in 4MB increments. Each program gets 256KB of SRAM.
+  * `Unused` - the slot is not used.
 * Save block mapping - map available save blocks to Soft slots. This allows mapping mutliple blocks to one slot, allowing multiple
   distinct saves for one piece of software.
 * Save data management - allows unloading save data from SRAM to Flash, as well as clearing save data for a given block.
