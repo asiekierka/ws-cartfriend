@@ -24,7 +24,7 @@
 	.code16
 	.intel_syntax noprefix
 
-	.section .start
+	.section .romL_fff_e0000.start, "axR"
 	.global _start
 _start:
 	cli
@@ -136,12 +136,8 @@ _start_finish_data_block:
 	and	al, 0x1F
 	out	0x60, al
 
-#ifdef __IA16_CMODEL_IS_FAR_TEXT
 	.reloc	.+3, R_386_SEG16, "main!"
 	jmp 0:main
-#else
-	jmp main
-#endif
 
 	.global crt0_restart
 crt0_restart:
