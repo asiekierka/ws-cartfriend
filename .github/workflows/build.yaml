@@ -1,0 +1,35 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    name: Build CartFriend
+    runs-on: ubuntu-latest
+    container: cbrzeszczot/wonderful:wswan-latest
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+
+      - name: Install additional dependencies
+        run: apt-get update && apt-get install -y python3 python3-pil && wf-pacman -Syu --noconfirm wf-tools wf-zx0-salvador
+
+      - name: Build
+        run: ./build_assets.sh && make TARGET=flash_masta && make TARGET=generic
+
+      - name: Archive (WSFM)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartFriend (WSFM)
+          path: CartFriend_flash_masta.wsc
+
+      - name: Archive (generic)
+        uses: actions/upload-artifact@v4
+        with:
+          name: CartFriend (generic)
+          path: CartFriend_generic.wsc

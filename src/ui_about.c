@@ -40,8 +40,10 @@ static inline int16_t cos(int16_t v) {
     return sin(v + 128);
 }
 
+static const char cartfriend_name[] = "CartFriend " VERSION;
+
 void ui_about(void) {
-    ui_puts_centered(false, 2, 0, lang_keys[LK_NAME]);
+    ui_puts_centered(false, 2, 0, cartfriend_name);
     // ui_puts_centered(false, 3, lang_keys[LK_RELEASE_DATE], 0);
     /* ui_bg_printf_centered(3, 0, lang_keys[LK_UI_LOADED_FROM],
         (int) fm_initial_slot[0],

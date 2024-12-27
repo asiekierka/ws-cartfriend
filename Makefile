@@ -1,7 +1,7 @@
-ifndef WONDERFUL_TOOLCHAIN
-$(error Please define WONDERFUL_TOOLCHAIN to point to the location of the Wonderful toolchain.)
-endif
-include $(WONDERFUL_TOOLCHAIN)/target/wswan/small/makedefs.mk
+VERSION ?= $(shell git rev-parse --short=8 HEAD)
+WONDERFUL_TOOLCHAIN ?= /opt/wonderful
+WF_TARGET = wswan/small
+include $(WONDERFUL_TOOLCHAIN)/target/$(WF_TARGET)/makedefs.mk
 
 TARGET ?= generic
 
@@ -9,7 +9,7 @@ OBJDIR := obj/$(TARGET)
 ELF_STAGE1 := obj/$(TARGET)_stage1.elf
 MKDIRS := $(OBJDIR)
 LIBS := -lwsx -lws
-CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections
+CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections -DVERSION=\"$(VERSION)\"
 LDFLAGS := -T$(WF_LDSCRIPT) $(WF_ARCH_LDFLAGS) -L$(WF_TARGET_DIR)/lib
 
 SRCDIRS := obj/assets src src/$(TARGET)
