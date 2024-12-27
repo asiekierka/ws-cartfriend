@@ -18,7 +18,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include "../res/lang.h"
+#include "../obj/assets/lang.h"
 
 typedef enum {
 	UI_LANGUAGE_EN = 0,

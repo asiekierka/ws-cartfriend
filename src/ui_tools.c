@@ -19,6 +19,7 @@
 #include <string.h>
 #include <wonderful.h>
 #include <ws.h>
+#include <wsx/zx0.h>
 #include "driver.h"
 #include "lang.h"
 #include "settings.h"
@@ -28,12 +29,11 @@
 #include "ws/hardware.h"
 #include "ws/system.h"
 #include "xmodem.h"
-#include "../res/wsmonitor.h"
+#include "../obj/assets/wsmonitor_zx0.h"
 
 typedef enum {
     MENU_TOOL_BFBCODE_XM,
     MENU_TOOL_SRAMCODE_XM,
-    MENU_TOOL_WSMONITOR,
     MENU_TOOL_WSMONITOR_RAM,
     MENU_TOOL_IPL_SRAM
 } ui_tool_id_t;
@@ -41,7 +41,6 @@ typedef enum {
 static uint16_t __far ui_tool_lks[] = {
     LK_UI_TOOLS_BFBCODE_XM,
     LK_UI_TOOLS_SRAMCODE_XM,
-    LK_UI_TOOLS_WSMONITOR,
     LK_UI_TOOLS_WSMONITOR_RAM,
     LK_UI_TOOLS_IPL_SRAM
 };
@@ -194,7 +193,6 @@ void ui_tools(void) {
     uint8_t i = 0;
     if (ws_system_color_active()) menu_list[i++] = MENU_TOOL_BFBCODE_XM;
     if ((_CS & 0xF000) != 0x1000) menu_list[i++] = MENU_TOOL_SRAMCODE_XM;
-    menu_list[i++] = MENU_TOOL_WSMONITOR;
     menu_list[i++] = MENU_TOOL_WSMONITOR_RAM;
 #ifndef TARGET_flash_masta
     if (!(inportb(IO_SYSTEM_CTRL1) & SYSTEM_CTRL1_IPL_LOCKED)) menu_list[i++] = MENU_TOOL_IPL_SRAM;
@@ -212,12 +210,10 @@ void ui_tools(void) {
     switch (result) {
         case MENU_TOOL_BFBCODE_XM: ui_tool_sramcode_bfb(); break;
         case MENU_TOOL_SRAMCODE_XM: ui_tool_sramcode_xm(); break;
-        case MENU_TOOL_WSMONITOR: launch_ram(_wsmonitor_bin); break;
         case MENU_TOOL_WSMONITOR_RAM: {
             wait_for_vblank();
-            cpu_irq_disable();
             outportw(IO_DISPLAY_CTRL, 0);
-            memcpy((uint8_t*) 0x3000, _wsmonitor_bin, _wsmonitor_bin_size);
+            wsx_zx0_decompress((uint8_t*) 0x3000, wsmonitor);
             launch_ram(MK_FP(0x0300, 0x0000));
         } break;
 #ifndef TARGET_flash_masta

@@ -11,12 +11,12 @@ LIBS := -lwsx -lws
 CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections
 LDFLAGS := $(WF_ARCH_LDFLAGS) -L$(WF_TARGET_DIR)/lib -Wl,--gc-sections
 
-SRCDIRS := res src src/$(TARGET)
+SRCDIRS := obj/assets src src/$(TARGET)
 CSOURCES := $(foreach dir,$(SRCDIRS),$(notdir $(wildcard $(dir)/*.c)))
 ASMSOURCES := $(foreach dir,$(SRCDIRS),$(notdir $(wildcard $(dir)/*.s)))
 OBJECTS := $(CSOURCES:%.c=$(OBJDIR)/%.o) $(ASMSOURCES:%.s=$(OBJDIR)/%.o)
 
-CFLAGS += -Ires -Isrc -DTARGET_$(TARGET)
+CFLAGS += -Iobj/assets -Isrc -DTARGET_$(TARGET)
 
 DEPS := $(OBJECTS:.o=.d)
 CFLAGS += -MMD -MP

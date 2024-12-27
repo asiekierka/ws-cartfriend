@@ -26,7 +26,7 @@
 #include "lang.h"
 #include "settings.h"
 #include "ui.h"
-#include "../res/font_default.h"
+#include "../obj/assets/font_default_bin.h"
 #include "util.h"
 
 const char __far* const __far* lang_keys;
@@ -162,7 +162,7 @@ void ui_init(void) {
     ui_update_theme(0);
 
     // install font @ 0x2000
-    wsx_planar_unpack((uint16_t*) 0x2000, _font_default_bin_size, _font_default_bin, WSX_PLANAR_UNPACK_1BPP_TO_2BPP_ZERO(1));
+    wsx_planar_unpack((uint16_t*) 0x2000, font_default_size, font_default, WSX_PLANAR_UNPACK_1BPP_TO_2BPP_ZERO(1));
 
     ui_reset_main_screen();
     ui_reset_alt_screen();

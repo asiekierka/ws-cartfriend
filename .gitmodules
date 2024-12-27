@@ -1,0 +1,3 @@
+[submodule "thirdparty/athenaos"]
+	path = thirdparty/athenaos
+	url = https://github.com/OpenWitch/AthenaOS
