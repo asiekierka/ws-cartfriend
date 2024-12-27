@@ -50,6 +50,10 @@ typedef struct __attribute__((packed)) {
 	uint8_t language; // 425
 } settings_t;
 
+#if __STDC_VERSION__ >= 201112L
+_Static_assert(sizeof(settings_t) == 425, "settings_t size error");
+#endif
+
 #define SETT_FLAGS1_HIDE_SLOT_IDS 0x01
 #define SETT_FLAGS1_DISABLE_BUFFERED_WRITES 0x02
 #define SETT_FLAGS1_UNLOCK_IEEP_NEXT_BOOT 0x04

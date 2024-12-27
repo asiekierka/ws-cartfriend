@@ -153,13 +153,13 @@ driver_launch_slot:
 _rtc_wait_ready:
 	push ax
 	.balign 2, 0x90
-_rtc_wait_ready_loop:
+1:
 	in al, 0xCA
 	test al, 0x10
-	jz _rtc_wait_ready_done
+	jz 2f
 	test al, 0x80
-	jz _rtc_wait_ready_loop
-_rtc_wait_ready_done:
+	jz 1b
+2:
 	pop ax
 	ret
 
@@ -172,10 +172,10 @@ _rtc_write_data_al:
 _driver_switch_slot:
 	push ax
 _driver_switch_slot1:
-	mov al, [_driver_current_slot]
+	ss mov al, [_driver_current_slot]
 	cmp al, dl
 	je _driver_switch_slot_equal
-	mov [_driver_current_slot], dl
+	ss mov [_driver_current_slot], dl
 
 	// call RTC
 	mov al, 0xA0
@@ -201,8 +201,8 @@ _driver_change_loop:
 	shl cx, 7 */
 	mov cx, (615 * 12) // ~12 ms (~15 ms known to be reliable)
 	.balign 2, 0x90
-_dc_loop2:
-	loop _dc_loop2
+1:
+	loop 1b
 	pop cx
 
 _driver_switch_slot_equal:
@@ -283,9 +283,9 @@ _drs_part2:
 	shr	cx, 1
 	cld
 	rep	movsw
-	jnc	_drs_no_byte
+	jnc	2f
 	movsb
-_drs_no_byte:
+2:
 	pop	bp
 	pop	es
 	pop	ds
@@ -325,6 +325,8 @@ driver_write_slot:
 	mov byte ptr es:[0x555], 0x55
 	mov byte ptr es:[bx], 0x20
 
+	cld
+
 	// check if we can write buffered
 	// we need to be within one 512-byte block
 	// and length needs to be <= 256
@@ -335,29 +337,29 @@ driver_write_slot:
 	add ax, cx
 	dec ax
 	xor ax, di
-	and ax, 0xFE00
+	and ah, 0xFE
 	jnz _dws_write_slow
 
-	xor bx, bx // clear BX (block address)
+1:
 	mov al, byte ptr [settings_local + 423]
 	test al, 0x02
 	jnz _dws_write_slow
 
 _dws_write_fast:
+	xor bx, bx // clear BX (block address)
 	dec cx
 
 	// start write
 	mov byte ptr es:[bx], 0x25
 	mov byte ptr es:[bx], cl
 
-	cld
 	shr cx, 1
 	.balign 2, 0x90
-_dws_fast_loop:
+1:
 	rep movsw
-	jnc _dws_fast_loop2
+	jnc 2f
 	movsb
-_dws_fast_loop2:
+2:
 	movsb
 
 	// confirm write
@@ -368,9 +370,8 @@ _dws_fast_loop2:
 	jmp dws_driver_flash_busyloop_until_done
 
 _dws_write_slow:
-	cld
 	.balign 2, 0x90
-_dws_loop:
+1:
 	mov byte ptr es:[bx], 0xA0
 	movsb
 dws_driver_flash_busyloop_until_done:
@@ -381,8 +382,9 @@ dws_driver_flash_busyloop_until_done:
 	nop
 	cmp al, byte ptr es:[di]
 	jne dws_driver_flash_busyloop_until_done
-	loop _dws_loop // 5 cycles
+	loop 1b // 5 cycles
 
+dws_driver_flash_done:
 	// stop bypass
 	mov byte ptr es:[bx], 0x90
 	mov byte ptr es:[bx], 0x00
@@ -527,9 +529,9 @@ _end:
 	// lock IEEPROM
 	mov al, 0x80
 	out 0xBE, ax
-_end_loop:
+1:
 	hlt
-	jmp _end_loop
+	jmp 1b
 
 	.section .bss
 _driver_bank_temp:
