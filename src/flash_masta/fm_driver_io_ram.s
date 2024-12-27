@@ -199,7 +199,7 @@ _driver_change_loop:
 	shl cx, 2
 	add cx, ax
 	shl cx, 7 */
-	mov cx, (615 * 12) // ~12 ms (~15 ms known to be reliable)
+	mov cx, (615 * 12) // ~12 ms (15 ms known to be reliable)
 	.balign 2, 0x90
 1:
 	loop 1b
@@ -215,17 +215,17 @@ _driver_switch_slot_bank1:
 	cli
 	push ax
 	in al, 0xC3
-	mov [_driver_bank_temp], al
+	ss mov [_driver_bank_temp], al
 	mov al, cl
 	out 0xC3, al
 	jmp _driver_switch_slot1
 
 // clobbers AX, DL
 _driver_unswitch_slot_bank1:
-	mov al, [_driver_bank_temp]
+	ss mov al, [_driver_bank_temp]
 	out 0xC3, al
 _driver_unswitch_slot:
-	mov dl, [fm_initial_slot]
+	ss mov dl, [fm_initial_slot]
 	call _driver_switch_slot
 	sti
 	ret
@@ -235,7 +235,7 @@ _driver_switch_slot_sram:
 	cli
 	push ax
 	in al, 0xC1
-	mov [_driver_bank_temp], al
+	ss mov [_driver_bank_temp], al
 	mov al, 1
 	out 0xCE, al
 	mov al, cl
@@ -246,7 +246,7 @@ _driver_switch_slot_sram:
 _driver_unswitch_slot_sram:
 	xor ax, ax
 	out 0xCE, al
-	mov al, [_driver_bank_temp]
+	ss mov al, [_driver_bank_temp]
 	out 0xC1, al
 	jmp _driver_unswitch_slot
 
