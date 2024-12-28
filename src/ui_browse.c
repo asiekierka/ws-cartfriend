@@ -338,7 +338,7 @@ void ui_browse_info(uint8_t slot) {
 }
 
 __attribute__((noinline))
-static uint8_t ui_browse_inner(uint8_t *entry_id) {
+static uint8_t ui_browse_inner(uint8_t *entry_id_ret) {
     uint8_t menu_list[256];
     uint8_t cart_metadata[ENTRY_ID_MAX * CART_METADATA_SIZE];
     uint8_t i = 0;
@@ -357,9 +357,10 @@ static uint8_t ui_browse_inner(uint8_t *entry_id) {
     uint16_t result = ui_menu_select(&menu);
     uint16_t subaction = 0;
     if ((result & 0xFF) < ENTRY_ID_MAX) {
-        *entry_id = result;
-        uint8_t slot_type = settings_local.slot_type[result & 0x0F];
-        bool is_ww = CART_METADATA_GET(cart_metadata, result & 0xFF)->type == CART_TYPE_WW_ATHENABIOS;
+        uint8_t entry_id = result;
+        *entry_id_ret = entry_id;
+        uint8_t slot_type = settings_local.slot_type[entry_id & 0x0F];
+        bool is_ww = CART_METADATA_GET(cart_metadata, entry_id)->type == CART_TYPE_WW_ATHENABIOS;
         if ((result & 0xFF00) == MENU_ACTION_B) {
             ui_popup_menu_state_t popup_menu = {
                 .list = menu_list,
@@ -370,26 +371,25 @@ static uint8_t ui_browse_inner(uint8_t *entry_id) {
             menu_list[i++] = BROWSE_SUB_LAUNCH;
             if (is_ww) menu_list[i++] = BROWSE_SUB_MANAGE_WW;
             menu_list[i++] = BROWSE_SUB_INFO;
-            menu_list[i++] = BROWSE_SUB_RENAME;
+            if (entry_id < 0x10) menu_list[i++] = BROWSE_SUB_RENAME;
             if (!is_ww && (slot_type == SLOT_TYPE_SOFT || slot_type == SLOT_TYPE_8M_2M)) menu_list[i++] = BROWSE_SUB_INSTALL_WW;
             menu_list[i++] = MENU_ENTRY_END;
             subaction = ui_popup_menu_run(&popup_menu);
         }
-        result &= 0xFF;
 
         if (subaction == BROWSE_SUB_LAUNCH) {
             ui_reset_main_screen();
 
             cart_header_t *header = (cart_header_t*) (menu_list + 128);
             _nmemset(menu_list, 0xFF, 16);
-            ui_read_rom_header_from_entry(header, result);
+            ui_read_rom_header_from_entry(header, entry_id);
 
             // does the game use save data?
             if (header->save_type != 0 && _CS >= 0x2000) {
                 // figure out SRAM slots
                 i = 0;
                 for (uint8_t k = 0; k < SRAM_SLOTS; k++) {
-                    if (settings_local.sram_slot_mapping[k] == (result & 0x0F)) {
+                    if (settings_local.sram_slot_mapping[k] == (entry_id & 0x0F)) {
                         menu_list[i++] = k;
                     }
                 }
@@ -410,8 +410,8 @@ static uint8_t ui_browse_inner(uint8_t *entry_id) {
                 }
 
                 uint8_t offset_size = SRAM_OFFSET_SIZE_DEFAULT;
-                if (slot_type == SLOT_TYPE_8M_2M  ) offset_size = SRAM_OFFSET_SIZE((result >= 0x10) ? 4 : 0, 4);
-                if (slot_type == SLOT_TYPE_8M_512K) offset_size = SRAM_OFFSET_SIZE((result >> 4) & 7, 1);
+                if (slot_type == SLOT_TYPE_8M_2M  ) offset_size = SRAM_OFFSET_SIZE((entry_id >= 0x10) ? 4 : 0, 4);
+                if (slot_type == SLOT_TYPE_8M_512K) offset_size = SRAM_OFFSET_SIZE((entry_id >> 4) & 7, 1);
                 
                 sram_switch_to_slot(sram_slot, offset_size);
             } else {
@@ -429,21 +429,21 @@ static uint8_t ui_browse_inner(uint8_t *entry_id) {
             }
 
             input_wait_clear();
-            launch_slot(result & 0x0F, 0xFF - (result & 0xF0));
+            launch_slot(entry_id & 0x0F, 0xFF - (entry_id & 0xF0));
         } else if (subaction == BROWSE_SUB_INFO) {
-            ui_browse_info(result);
+            ui_browse_info(entry_id);
         } else if (subaction == BROWSE_SUB_RENAME) {
-            if (result < GAME_SLOTS) {
-                if (settings_local.slot_name[result][0] < 0x20) {
+            if (entry_id < GAME_SLOTS) {
+                if (settings_local.slot_name[entry_id][0] < 0x20) {
                     menu_list[0] = 0;
                 } else {
-                    _nmemcpy(menu_list, settings_local.slot_name[result] + 1, 23);
+                    _nmemcpy(menu_list, settings_local.slot_name[entry_id] + 1, 23);
                 }
                 if (ui_osk_run(0, (char*) menu_list, 23)) {
-                    _nmemset(settings_local.slot_name[result], 0, 24);
+                    _nmemset(settings_local.slot_name[entry_id], 0, 24);
                     if (menu_list[0] != 0) {
-                        settings_local.slot_name[result][0] = 0x20;
-                        strncpy((char*) (settings_local.slot_name[result] + 1), (char*) menu_list, 23);
+                        settings_local.slot_name[entry_id][0] = 0x20;
+                        strncpy((char*) (settings_local.slot_name[entry_id] + 1), (char*) menu_list, 23);
                     }
                     settings_mark_changed();
                 }

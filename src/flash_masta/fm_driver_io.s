@@ -23,6 +23,7 @@
  */
 
 #include <wonderful.h>
+#include <ws.h>
 
 	.arch	i186
 	.code16
@@ -36,24 +37,23 @@
 
 _rtc_wait_ready:
 	push ax
-_rtc_wait_ready_loop:
-	in al, 0xCA
-	test al, 0x10
-	jz _rtc_wait_ready_done
-	test al, 0x80
-	jz _rtc_wait_ready_loop
-_rtc_wait_ready_done:
+1:
+	in al, IO_CART_RTC_CTRL
+	test al, (CART_RTC_READY | CART_RTC_ACTIVE)
+	jz 2f // The "not ready and not active" state also allows writing to the RTC.
+	jns 1b // If not ready, keep waiting.
+2:
 	pop ax
 	ret
 
 _rtc_write_data_al:
 	call _rtc_wait_ready
-	out 0xCB, al
+	out IO_CART_RTC_DATA, al
 	ret
 
 _rtc_read_data_al:
 	call _rtc_wait_ready
-	in al, 0xCB
+	in al, IO_CART_RTC_DATA
 	ret
 
 # clobbers AX
@@ -75,9 +75,9 @@ _dc_loop2:
 _avr_sleep:
 	push ax
 	mov al, 0x08
-	out 0xCD, al
+	out IO_CART_GPO_DATA, al
 	xor al, al
-	out 0xCC, al
+	out IO_CART_GPO_CTRL, al
 	call _driver_change_loop
 	pop ax
 	ret
@@ -85,10 +85,10 @@ _avr_sleep:
 _avr_wake:
 	push ax
 	mov al, 0x08
-	out 0xCD, al
-	out 0xCC, al
+	out IO_CART_GPO_DATA, al
+	out IO_CART_GPO_CTRL, al
 	xor al, al
-	out 0xCD, al
+	out IO_CART_GPO_DATA, al
 	call _driver_change_loop
 	pop ax
 	ret
@@ -139,7 +139,7 @@ driver_init:
 	mov al, 0xA1
 	call _rtc_write_data_al
 	mov al, 0x14
-	out 0xCA, al
+	out IO_CART_RTC_CTRL, al
 
 	xor al, al
 	call _rtc_write_data_al
@@ -154,7 +154,7 @@ driver_init:
 
 	// GET_DATE_AND_TIME
 	mov al, 0x15
-	out 0xCA, al
+	out IO_CART_RTC_CTRL, al
 	call _rtc_read_data_al
 	mov [fm_initial_slot+1], al
 	call _rtc_read_data_al

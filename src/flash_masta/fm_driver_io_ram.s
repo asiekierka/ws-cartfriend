@@ -23,6 +23,7 @@
  */
 
 #include <wonderful.h>
+#include <ws.h>
 
 	.arch	i186
 	.code16
@@ -45,17 +46,17 @@ driver_launch_slot_relocated:
 	// initialize ROM banks
 	mov al, cl
 	or al, 0xF
-	out 0xC2, al
-	out 0xC3, al
+	out IO_BANK_ROM0, al
+	out IO_BANK_ROM1, al
 	ror al, 4
-	out 0xC0, al
-	out 0xC1, al
+	out IO_BANK_ROM_LINEAR, al
+	out IO_BANK_RAM, al
 
 	// lock cartridge
 	mov al, 0x08
-	out 0xCD, al
+	out IO_CART_GPO_DATA, al
 	xor ax, ax
-	out 0xCC, al
+	out IO_CART_GPO_CTRL, al
 
 	// the memory clears will take the necessary time
 	mov di, 0x2200
@@ -154,18 +155,17 @@ _rtc_wait_ready:
 	push ax
 	.balign 2, 0x90
 1:
-	in al, 0xCA
-	test al, 0x10
-	jz 2f
-	test al, 0x80
-	jz 1b
+	in al, IO_CART_RTC_CTRL
+	test al, (CART_RTC_READY | CART_RTC_ACTIVE)
+	jz 2f // The "not ready and not active" state also allows writing to the RTC.
+	jns 1b // If not ready, keep waiting.
 2:
 	pop ax
 	ret
 
 _rtc_write_data_al:
 	call _rtc_wait_ready
-	out 0xCB, al
+	out IO_CART_RTC_DATA, al
 	ret
 
 // dx = slot
@@ -177,11 +177,11 @@ _driver_switch_slot1:
 	je _driver_switch_slot_equal
 	ss mov [_driver_current_slot], dl
 
-	// call RTC
+	// Use RTC protocol to change the current bank.
 	mov al, 0xA0
 	call _rtc_write_data_al
 	mov al, 0x14
-	out 0xCA, al
+	out IO_CART_RTC_CTRL, al
 	mov al, dl
 	call _rtc_write_data_al
 	xor al, al
@@ -214,16 +214,16 @@ _driver_switch_slot_equal:
 _driver_switch_slot_bank1:
 	cli
 	push ax
-	in al, 0xC3
+	in al, IO_BANK_ROM1
 	ss mov [_driver_bank_temp], al
 	mov al, cl
-	out 0xC3, al
+	out IO_BANK_ROM1, al
 	jmp _driver_switch_slot1
 
 // clobbers AX, DL
 _driver_unswitch_slot_bank1:
 	ss mov al, [_driver_bank_temp]
-	out 0xC3, al
+	out IO_BANK_ROM1, al
 _driver_unswitch_slot:
 	ss mov dl, [fm_initial_slot]
 	call _driver_switch_slot
@@ -234,20 +234,20 @@ _driver_unswitch_slot:
 _driver_switch_slot_sram:
 	cli
 	push ax
-	in al, 0xC1
+	in al, IO_BANK_RAM
 	ss mov [_driver_bank_temp], al
 	mov al, 1
-	out 0xCE, al
+	out IO_CART_FLASH, al
 	mov al, cl
-	out 0xC1, al
+	out IO_BANK_RAM, al
 	jmp _driver_switch_slot1
 
 // clobbers AX, DL
 _driver_unswitch_slot_sram:
 	xor ax, ax
-	out 0xCE, al
+	out IO_CART_FLASH, al
 	ss mov al, [_driver_bank_temp]
-	out 0xC1, al
+	out IO_BANK_RAM, al
 	jmp _driver_unswitch_slot
 
 _driver_reset_flash:
@@ -460,8 +460,8 @@ driver_erase_bank_finish:
 driver_slot_finish_error_check:
 // if BIOS unlocked, skip check
 // TODO: implement alternate check
-	in al, 0xA0
-	test al, 0x01
+	in al, IO_SYSTEM_CTRL1
+	test al, SYSTEM_CTRL1_IPL_LOCKED
 	jz driver_slot_finish_error_check_skip
 
 	push ds
@@ -513,22 +513,22 @@ driver_write_error:
 	mov es, bx
 	mov di, 0x3800
 	call driver_emergency_error_handler_hex2int
-	in al, 0xC0
+	in al, IO_BANK_ROM_LINEAR
 	call driver_emergency_error_handler_hex2int
-	in al, 0xC1
+	in al, IO_BANK_RAM
 	call driver_emergency_error_handler_hex2int
-	in al, 0xCE
+	in al, IO_CART_FLASH
 	call driver_emergency_error_handler_hex2int
-	in ax, 0x00
-	or al, 0x03
-	out 0x00, ax
+	in ax, IO_DISPLAY_CTRL
+	or al, (DISPLAY_SCR1_ENABLE | DISPLAY_SCR2_ENABLE)
+	out IO_DISPLAY_CTRL, ax
 _end:
 	cli
 	xor ax, ax
-	out 0xB2, al
+	out IO_HWINT_ENABLE, al
 	// lock IEEPROM
-	mov al, 0x80
-	out 0xBE, ax
+	mov al, IEEP_PROTECT
+	out IO_IEEP_CTRL, ax
 1:
 	hlt
 	jmp 1b
