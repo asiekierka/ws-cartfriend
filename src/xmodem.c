@@ -38,6 +38,7 @@
 #define CAN 24
 
 static uint8_t xmodem_idx;
+static uint8_t xmodem_retry;
 
 bool xmodem_poll_exit(void) {
 	input_update();
@@ -93,51 +94,53 @@ static void xmodem_write_block(const uint8_t __far* block) {
 
 uint8_t xmodem_recv_start(void) {
 	xmodem_idx = 1;
-	ws_serial_putc(NAK);
-	
+	xmodem_retry = 1;
+
 	return XMODEM_OK;
 }
 
 uint8_t xmodem_recv_block(uint8_t __far* block) {
-	uint8_t retries = 10;
+recv_block_start:
+	ws_serial_putc(xmodem_retry ? NAK : ACK);
+	cpu_irq_disable();
 
 	while (1) {
 		if (xmodem_poll_exit()) return XMODEM_SELF_CANCEL;
 
-		uint8_t r = ws_serial_getc();
-		if (r == CAN) {
-			return XMODEM_CANCEL;
-		} else if (r == SOH) {
-			uint8_t result = xmodem_read_block(block);
-			if (result == XMODEM_OK) {
-				return XMODEM_OK;
-			} else if (result == XMODEM_ERROR) {
-				ws_serial_putc(NAK);
+		int16_t r = ws_serial_getc_nonblock();
+		if (r >= 0) {
+			if (r == CAN) {
+				return XMODEM_CANCEL;
+			} else if (r == EOT) {
+				ws_serial_putc(ACK);
+				return XMODEM_COMPLETE;
+			} else if (r == SOH) {
+				uint8_t result = xmodem_read_block(block);
+				if (result == XMODEM_OK) {
+					xmodem_idx++;
+					xmodem_retry = 0;
+					return XMODEM_OK;
+				} else if (result == XMODEM_ERROR) {
+					goto recv_block_error;
+				} else {
+					ws_serial_putc(CAN);
+					return XMODEM_ERROR;
+				}
 			} else {
-				ws_serial_putc(CAN);
-				return XMODEM_ERROR;
+recv_block_error:
+				xmodem_retry++;
+				if (xmodem_retry > 10) return XMODEM_ERROR;
+				goto recv_block_start;
 			}
-		} else if (r == EOT) {
-			ws_serial_putc(ACK);
-			return XMODEM_COMPLETE;
-		} else {
-			// TODO: Is this right?
-			ws_serial_putc(NAK);
 		}
-		if ((retries--) == 0) return XMODEM_ERROR;
-
-		// ws_hwint_enable(HWINT_SERIAL_RX);
-		// cpu_halt();
 	}
-}
 
-void xmodem_recv_ack(void) {
-	xmodem_idx++;
-	ws_serial_putc(ACK);
+	cpu_irq_enable();
 }
 
 uint8_t xmodem_send_start(void) {
 	xmodem_idx = 1;
+	xmodem_retry = 0;
 
 	while (!xmodem_poll_exit()) {
 		int16_t r = ws_serial_getc_nonblock();
@@ -157,7 +160,7 @@ uint8_t xmodem_send_start(void) {
 
 uint8_t xmodem_send_block(const uint8_t __far* block) {
 	uint8_t retries = 10;
-WriteAgain:
+send_write_again:
 	if ((retries--) == 0) return XMODEM_ERROR;
 	xmodem_write_block(block);
 
@@ -167,7 +170,7 @@ WriteAgain:
 			if (r == CAN) {
 				return XMODEM_CANCEL;
 			} else if (r == NAK) {
-				goto WriteAgain;
+				goto send_write_again;
 			} else if (r == ACK) {
 				xmodem_idx++;
 				return XMODEM_OK;
@@ -182,7 +185,7 @@ WriteAgain:
 
 uint8_t xmodem_send_finish(void) {
 	uint8_t retries = 10;
-WriteAgain:
+send_write_again:
 	if ((retries--) == 0) return XMODEM_ERROR;
 	ws_serial_putc(EOT);
 
@@ -192,7 +195,7 @@ WriteAgain:
 			if (r == CAN) {
 				return XMODEM_CANCEL;
 			} else if (r == NAK) {
-				goto WriteAgain;
+				goto send_write_again;
 			} else if (r == ACK) {
 				return XMODEM_OK;
 			}

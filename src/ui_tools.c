@@ -118,13 +118,11 @@ static void ui_tool_sramcode_bfb() {
                                 code_ptr = code_start_ptr;
                                 memcpy(code_ptr, buffer + 4, 124);
                                 code_ptr += 124;
-                                xmodem_recv_ack();
                                 break;
                             }
                         }
                     } else if (code_blocks_left--) {
                         code_ptr += 128;
-                        xmodem_recv_ack();
                         break;
                     }
                     // fall through to XMODEM_ERROR
@@ -172,7 +170,6 @@ static void ui_tool_sramcode_xm() {
                     if (sram_incrs < 512) {
                         ui_tool_xmodem_ui_step((uint32_t) sram_incrs << 7);
                         sram_ptr += 128;
-                        xmodem_recv_ack();
                         break;
                     }
                     // fall through to XMODEM_ERROR

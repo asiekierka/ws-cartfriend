@@ -176,7 +176,6 @@ static bool ww_download_os() {
                     if (sram_incrs < 512) {
                         ui_tool_xmodem_ui_step((uint32_t) sram_incrs << 7);
                         sram_ptr += 128;
-                        xmodem_recv_ack();
                         break;
                     }
                 }
