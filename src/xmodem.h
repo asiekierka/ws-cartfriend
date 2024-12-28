@@ -45,4 +45,3 @@ uint8_t xmodem_send_finish(void);
 
 uint8_t xmodem_recv_start(void);
 uint8_t xmodem_recv_block(uint8_t __far* block);
-void xmodem_recv_ack(void);
