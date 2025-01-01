@@ -191,6 +191,13 @@ static bool ww_download_os() {
     ui_clear_work_indicator();
     xmodem_close();
     while (!xmodem_poll_exit()) cpu_halt();
+
+    // clear remaining data
+    for (; sram_incrs < 512; sram_incrs++) {
+         memset(sram_ptr, 0xFF, 128);
+         sram_ptr += 128;
+    }
+
     return false;
 }
 
