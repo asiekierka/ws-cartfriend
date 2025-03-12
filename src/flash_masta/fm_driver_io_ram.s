@@ -60,16 +60,16 @@ driver_launch_slot_relocated:
 
 	// the memory clears will take the necessary time
 	mov di, 0x2200
-	mov cx, 0xF00
+	mov cx, ((0x4000 - 0x2200) >> 1)
 	rep stosw
 
 	// clear (almost) all memory we can (rep stosw in relocated part)
 	mov di, ax
-	mov cx, 0x20
+	mov cx, (0x40 >> 1)
 	rep stosw
 
 	mov di, 0x58
-	mov cx, 0xFE0
+	mov cx, ((0x2000 - 0x58) >> 1)
 	rep stosw
 
 	// restore partial register state

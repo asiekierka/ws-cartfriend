@@ -29,9 +29,9 @@
 // Reserve 0x2000 bytes of space for BIOS (if botting from PCv2 override)
 __attribute__((section(".rom0_ffff_e000.bios_pad")))
 volatile uint8_t bios_pad[0x1FF0] = {0x00};
-// Reserve 0x58 bytes of space in RAM
-__attribute__((section(".iram_0040.ivt_pad")))
-volatile uint8_t ivt_pad[0x18] = {0x00};
+// Reserve 0x18 bytes of space in RAM
+__attribute__((section(".iramx_0040.ivt_pad")))
+volatile uint8_t ivt_pad[0x18];
 
 // Memory map:
 // 0x0000 - 0x1800: Heap

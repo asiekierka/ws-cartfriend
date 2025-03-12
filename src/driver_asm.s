@@ -32,6 +32,7 @@
 	.align 2
 launch_ram_asm:
 	cli
+	cld
 
 	mov si, 0x2004
 	mov byte ptr [si], 0xEA
@@ -56,11 +57,15 @@ launch_ram_asm:
 	jb launch_ram_asm_skip_memory_clear
 
 	mov di, 0
-	mov cx, 0x1000
+	mov cx, (0x40 >> 1)
+	rep stosw
+
+	mov di, 0x58
+	mov cx, ((0x2000 - 0x58) >> 1)
 	rep stosw
 
 	mov di, 0x200A
-	mov cx, 0x0FFB
+	mov cx, ((0x4000 - 0x200A) >> 1)
 	rep stosw
 
 	// restore register state
@@ -92,7 +97,7 @@ launch_ram_asm:
 	mov [0x56], ax
 	mov ax, [0x2002]
 	mov ds, ax
-	mov ax, [0x2000]
+	ss mov ax, [0x2000]
 
 	// fly me to the moon
 	jmp 0x0000,0x2004
