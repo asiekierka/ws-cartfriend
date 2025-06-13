@@ -44,6 +44,14 @@ static const char cartfriend_name[] = "CartFriend " VERSION;
 
 void ui_about(void) {
     ui_puts_centered(false, 2, 0, cartfriend_name);
+#ifdef TARGET_flash_masta
+    outportb(0xCE, 0xAA);
+    bool is_rev5 = inportb(0xCE) == 0xAA;
+    ui_puts_centered(false, 3, 0, lang_keys[is_rev5 ? LK_UI_FM_REV5 : LK_UI_FM_REV4]);
+#else
+    ui_puts_centered(false, 3, 0, lang_keys[LK_UI_GENERIC]);
+#endif
+
     // ui_puts_centered(false, 3, lang_keys[LK_RELEASE_DATE], 0);
     /* ui_bg_printf_centered(3, 0, lang_keys[LK_UI_LOADED_FROM],
         (int) fm_initial_slot[0],
@@ -136,7 +144,7 @@ void ui_about(void) {
             points3D[i][0] = (points3D[i][0] * z) >> 7;
             points3D[i][1] = (points3D[i][1] * z) >> 7;
             SPRITE_TABLE[(i << 2)] = (z < 118) ? 12 : ((z < 140) ? 7 : 11);
-            SPRITE_TABLE[(i << 2) + 2] = (points3D[i][1] >> 2) + 65;
+            SPRITE_TABLE[(i << 2) + 2] = (points3D[i][1] >> 2) + 69;
             SPRITE_TABLE[(i << 2) + 3] = (points3D[i][0] >> 2) + (112 + (sinOX >> 1));
         }
         outportw(IO_DISPLAY_CTRL, inportw(IO_DISPLAY_CTRL) | DISPLAY_SPR_ENABLE);
