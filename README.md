@@ -30,8 +30,6 @@ The "Browse" tab allows:
 
 #### WW installation
 
-**This currently only works on rev4 Flash Masta units!** The reasons behind it not working on rev5 are unknown.
-
 One can use the (B -> Install WW) option to create a WW environment on the cartridge. For this, the following is required:
 
 - an RS-232 serial cable,
