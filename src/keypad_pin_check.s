@@ -31,4 +31,4 @@ keypad_pin_check:
 	out	0xB5, al
 	daa
 	in	al, dx
-	ASM_PLATFORM_RET
+	IA16_RET

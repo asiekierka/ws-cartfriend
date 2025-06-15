@@ -9,7 +9,7 @@ OBJDIR := obj/$(TARGET)
 ELF_STAGE1 := obj/$(TARGET)_stage1.elf
 MKDIRS := $(OBJDIR)
 LIBS := -lwsx -lws
-CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections -DVERSION=\"$(VERSION)\"
+CFLAGS := $(WF_ARCH_CFLAGS) -I$(WF_TARGET_DIR)/include -Os -fno-jump-tables -ffunction-sections -DVERSION=\"$(VERSION)\" -DLIBWS_API_COMPAT=202504L 
 LDFLAGS := -T$(WF_LDSCRIPT) $(WF_ARCH_LDFLAGS) -L$(WF_TARGET_DIR)/lib
 
 SRCDIRS := obj/assets src src/$(TARGET)
