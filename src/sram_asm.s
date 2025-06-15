@@ -58,7 +58,7 @@ sram_copy_buffer_checkff_loop:
 	pop	ds
 	pop	di
 	pop	si
-	ASM_PLATFORM_RET
+	IA16_RET
 
 	.align 2
 sram_copy_buffer_checkff_loop_found_data:
@@ -71,7 +71,7 @@ sram_copy_buffer_checkff_loop_done:
 	pop	ds
 	pop	di
 	pop	si
-	ASM_PLATFORM_RET
+	IA16_RET
 
 	// 0x3000:offset => 0x1000:offset
 	.global sram_copy_from_bank1
@@ -96,7 +96,7 @@ sram_copy_from_bank1:
 	pop	ds
 	pop	di
 	pop	si
-	ASM_PLATFORM_RET
+	IA16_RET
 
 
 #endif
