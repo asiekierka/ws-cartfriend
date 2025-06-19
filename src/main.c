@@ -58,6 +58,9 @@ void main(void) {
 	// to dodge elf2rom's limited section garbage collector
 	outportb(IO_INT_NMI_CTRL, bios_pad[0] & ivt_pad[0] & 0x00);
 
+	// Initialize LCD display on PCv2
+	outportb(WS_LCD_CTRL_PORT, inportb(WS_LCD_CTRL_PORT) | WS_LCD_CTRL_DISPLAY_ENABLE);
+
 	cpu_irq_disable();
 	ws_hwint_set_handler(HWINT_IDX_VBLANK, vblank_int_handler);
 	ws_hwint_enable(HWINT_VBLANK);
