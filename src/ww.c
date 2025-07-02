@@ -193,10 +193,22 @@ static bool ww_download_os() {
     while (!xmodem_poll_exit()) cpu_halt();
 
     // clear remaining data
+    uint16_t size_blocks = sram_incrs;
     for (; sram_incrs < 512; sram_incrs++) {
          memset(sram_ptr, 0xFF, 128);
          sram_ptr += 128;
     }
+
+    // write footer
+    uint8_t __far* sram_footer = MK_FP(0x1000, 0xFFF0);
+    sram_footer[0x0] = 0xEA;
+    sram_footer[0x1] = 0x00;
+    sram_footer[0x2] = 0x00;
+    sram_footer[0x3] = 0x00;
+    sram_footer[0x4] = 0xE0;
+    sram_footer[0x5] = 0x00;
+    sram_footer[0x6] = size_blocks;
+    sram_footer[0x7] = size_blocks >> 8;
 
     return false;
 }
