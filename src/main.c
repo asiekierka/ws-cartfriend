@@ -26,9 +26,6 @@
 #include "util.h"
 #include "ws/hardware.h"
 
-// Reserve 0x2000 bytes of space for BIOS (if botting from PCv2 override)
-__attribute__((section(".rom0_ffff_e000.bios_pad")))
-volatile uint8_t bios_pad[0x1FF0] = {0x00};
 // Reserve 0x18 bytes of space in RAM
 __attribute__((section(".iramx_0040.ivt_pad")))
 volatile uint8_t ivt_pad[0x18];
@@ -54,9 +51,9 @@ void __far vblank_int_handler(void) {
 }
 
 void main(void) {
-	// FIXME: bios_pad[0] is used here solely to create a strong memory reference
-	// to dodge elf2rom's limited section garbage collector
-	outportb(IO_INT_NMI_CTRL, bios_pad[0] & ivt_pad[0] & 0x00);
+	// FIXME: ivt_pad[0] is used here solely to create a strong memory reference
+	// to dodge missing "retain" attribute
+	outportb(IO_INT_NMI_CTRL, ivt_pad[0] & 0x00);
 
 	// Initialize LCD display on PCv2
 	outportb(WS_LCD_CTRL_PORT, inportb(WS_LCD_CTRL_PORT) | WS_LCD_CTRL_DISPLAY_ENABLE);
