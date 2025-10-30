@@ -12,8 +12,6 @@ unlock_internal_eeprom = true
 start_segment = 0xE000
 start_offset = 0x0000
 
-rom_reserve_bootrom_area = true
-
 [memory]
 model = "small"
 
