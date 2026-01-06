@@ -27,7 +27,7 @@
 #include "ws/hardware.h"
 
 // Reserve 0x18 bytes of space in RAM
-__attribute__((section(".iramx_0040.ivt_pad")))
+__attribute__((section(".iramx_0040.ivt_pad"), retain))
 volatile uint8_t ivt_pad[0x18];
 
 // Memory map:
@@ -51,10 +51,6 @@ void __far vblank_int_handler(void) {
 }
 
 void main(void) {
-	// FIXME: ivt_pad[0] is used here solely to create a strong memory reference
-	// to dodge missing "retain" attribute
-	outportb(IO_INT_NMI_CTRL, ivt_pad[0] & 0x00);
-
 	// Initialize LCD display on PCv2
 	outportb(WS_LCD_CTRL_PORT, inportb(WS_LCD_CTRL_PORT) | WS_LCD_CTRL_DISPLAY_ENABLE);
 
